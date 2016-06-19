@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebUSB DFU</title>
+    <script src="dfu.js"></script>
+    <script src="dfu-util.js"></script>
+  </head>
+  <body>
+    <p>
+      <button id="connect">Connect</button>
+      <button id="scan">Show approved DFU interfaces</button>
+      <span id="status"></span>
+    </p>
+    <p>
+      <label for="vid">Vendor ID (hex):</label>
+      <input type="text" name="vid" id="vid" value="0x1209" maxlength="6" size="6"/>
+    </p>
+    <p>
+      <div id="usbInfo" style="white-space: pre"></div>
+      <div id="dfuInfo" style="white-space: pre"></div>
+    </p>
+  </body>
+</html>
