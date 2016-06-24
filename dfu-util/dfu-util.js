@@ -42,6 +42,9 @@ var device;
         let vid = parseInt(vidField.value, 16);
         let transferSizeField = document.querySelector("#transferSize");
         let transferSize = parseInt(transferSizeField.value);
+        let firmwareFileField = document.querySelector("#firmwareFile");
+        let firmwareFile = null;
+        
         //let device;
 
         function onDisconnect(reason) {
@@ -55,6 +58,7 @@ var device;
             detachButton.disabled = true;
             uploadButton.disabled = true;
             downloadButton.disabled = true;
+            firmwareFileField.disabled = true;
         }
 
         function connect(device) {
@@ -77,12 +81,14 @@ var device;
                     detachButton.disabled = false;
                     uploadButton.disabled = true;
                     downloadButton.disabled = true;
+                    firmwareFileField.disabled = true;
                 } else {
                     // DFU
                     // TODO: discover capabilities by reading descriptor
                     detachButton.disabled = true;
                     uploadButton.disabled = false;
                     downloadButton.disabled = false;
+                    firmwareFileField.disabled = false;
                 }
             }, error => {
                 onDisconnect(error);
@@ -141,9 +147,21 @@ var device;
             }
         });
 
+        firmwareFileField.addEventListener("change", function() {
+            firmwareFile = null;
+            if (firmwareFileField.files.length > 0) {
+                let file = firmwareFileField.files[0];
+                let reader = new FileReader();
+                reader.onload = function() {
+                    firmwareFile = reader.result;
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
         downloadButton.addEventListener('click', function() {
-            if (device) {
-                // TODO...
+            if (device && firmwareFile != null) {
+                device.do_download(transferSize, firmwareFile)
             }
         });
 

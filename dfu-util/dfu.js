@@ -11,6 +11,18 @@ var dfu = {};
     dfu.GETSTATE = 0x05;
     dfu.ABORT = 6;
 
+    dfu.appIDLE = 0;
+    dfu.appDETACH = 1;
+    dfu.dfuIDLE = 2;
+    dfu.dfuDNLOAD_SYNC = 3;
+    dfu.dfuDNBUSY = 4;
+    dfu.dfuDNLOAD_IDLE = 5;
+    dfu.dfuMANIFEST_SYNC = 6;
+    dfu.dfuMANIFEST = 7;
+    dfu.dfuMANIFEST_WAIT_RESET = 8;
+    dfu.dfuUPLOAD_IDLE = 9;
+    dfu.dfuERROR = 10;
+
     dfu.Device = function(device, settings) {
         this.device_ = device;
         this.settings = settings;
@@ -227,6 +239,60 @@ var dfu = {};
         }
         
         return device.upload(xfer_size, transaction).then(upload_success);
+    };
+
+    dfu.Device.prototype.do_download = function(xfer_size, data) {
+        let bytes_sent = 0;
+        let expected_size = data.byteLength;
+        let transaction = 0;
+
+        console.log("Copying data from browser to DFU device");
+
+        let device = this;
+        function poll_until_idle(result) {
+            if (result.state == dfu.dfuDNLOAD_IDLE || result.state == dfu.dfuERROR) {
+                return Promise.resolve(result);
+            } else {
+                let deferred = new Promise(function (resolve, reject) {
+                    function poll_after_sleeping() {
+                        function die_on_error(error) {
+                            throw "Error during download getStatus: " + error;
+                        }
+                        resolve(device.getStatus().then(poll_until_idle, die_on_error))
+                    }
+                    console.log("Sleeping for " + result.pollTimeout + "ms");
+                    setTimeout(poll_after_sleeping, result.pollTimeout);
+                });
+                return deferred;
+            }
+        }
+        
+        function download_success(bytes_written) {
+            bytes_sent += bytes_written;
+            console.log("Wrote " + bytes_written + " bytes");
+            let bytes_left = expected_size - bytes_sent;
+            let chunk_size = Math.min(bytes_left, xfer_size);
+            
+            device.getStatus().then(poll_until_idle).then(
+                result => {
+                    if (result.status != 0x0) {
+                        throw "DFU DOWNLOAD failed state=${result.state}, status=${result.status}";
+                    }
+                    return Promise.resolve();
+                }
+            ).then(
+                () => {
+                    if (bytes_left > 0) {
+                        return device.download(data.slice(bytes_sent, bytes_sent+chunk_size), transaction++).then(download_success);
+                    } else {
+                        console.log("Sending empty block");
+                        return device.download(new ArrayBuffer([]), transaction++);
+                    }
+                }
+            )
+        }
+
+        return device.download(data.slice(0, xfer_size), transaction++).then(download_success);
     };
     
 })();
