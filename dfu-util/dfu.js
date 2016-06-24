@@ -87,6 +87,48 @@ var dfu = {};
         return this.device_.close();
     };
 
+    // Permissions don't seem to work out
+    /*
+    dfu.Device.prototype.readConfigurationDescriptor = function() {
+        const GET_DESCRIPTOR = 0x06;
+        const DT_CONFIGURATION = 0x02;
+        const descIndex = this.settings.configuration.configurationValue;
+        const wValue = ((DT_CONFIGURATION << 8) | descIndex);
+        
+        return this.device_.controlTransferIn({
+            "requestType": "standard",
+            "recipient": "device",
+            "request": GET_DESCRIPTOR,
+            "value": wValue,
+            "index": 0
+        }, 4).then(
+            result => {
+                if (result.status == "ok") {
+                    // Read out length of the configuration descriptor
+                    let wLength = result.data.getUint16(2, true);
+                    return this.device_.controlTransferIn({
+                        "requestType": "standard",
+                        "recipient": "device",
+                        "request": GET_DESCRIPTOR,
+                        "value": wValue,
+                        "index": 0
+                    }, wLength);
+                } else {
+                    return Promise.reject(result.status);
+                }
+            }
+        ).then(
+            result => {
+                if (result.status == "ok") {
+                     return Promise.resolve(result.data);
+                } else {
+                    return Promise.reject(result.status);
+                }
+            }
+        );
+    };
+    */
+
     dfu.Device.prototype.requestOut = function(bRequest, data, wValue=0) {
         return this.device_.controlTransferOut({
             "requestType": "class",
@@ -134,10 +176,7 @@ var dfu = {};
     dfu.Device.prototype.dnload = dfu.Device.prototype.download;
 
     dfu.Device.prototype.upload = function(length, blockNum) {
-        return this.requestIn(dfu.UPLOAD, length, blockNum).then(
-            data => data,
-            error => { throw "DFU UPLOAD failed"; }
-        );
+        return this.requestIn(dfu.UPLOAD, length, blockNum)
     };
 
     dfu.Device.prototype.clearStatus = function() {
@@ -168,6 +207,26 @@ var dfu = {};
 
     dfu.Device.prototype.abort = function() {
         return this.requestOut(dfu.ABORT);
+    };
+
+    dfu.Device.prototype.do_upload = function(xfer_size) {
+        let transaction = 0;
+        let blocks = [];
+        console.log("Copying data from DFU device to browser");
+
+        let device = this;
+        function upload_success(result) {
+            if (result.byteLength > 0) {
+                blocks.push(result);
+            }
+            if (result.byteLength == xfer_size) {
+                return device.upload(xfer_size, transaction++).then(upload_success);
+            } else {
+                return Promise.resolve(new Blob(blocks, { type: "application/octet-stream" }));
+            }
+        }
+        
+        return device.upload(xfer_size, transaction).then(upload_success);
     };
     
 })();

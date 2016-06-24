@@ -3,12 +3,13 @@
   <head>
     <title>WebUSB DFU</title>
     <script src="dfu.js"></script>
+    <script src="FileSaver.js"></script>
     <script src="dfu-util.js"></script>
+    <style>
+    </style>
   </head>
   <body>
     <p>
-      <button id="connect">Connect</button>
-      <button id="scan">Show approved DFU interfaces</button>
       <span id="status"></span>
     </p>
     <p>
@@ -16,8 +17,35 @@
       <input type="text" name="vid" id="vid" value="0x1209" maxlength="6" size="6"/>
     </p>
     <p>
+      <button id="connect">Connect</button>
+    </p>
+    <p>
       <div id="usbInfo" style="white-space: pre"></div>
       <div id="dfuInfo" style="white-space: pre"></div>
     </p>
+    <fieldset>
+      <legend>Runtime mode</legend>
+      <button id="detach" disabled="true">Detach DFU</button>
+    </fieldset>
+    <fieldset>
+      <label for="transferSize">Transfer Size:</label>
+      <input type="number" name="transferSize" id="transferSize" value="1024"></input>
+      <legend>DFU mode</legend>
+      <fieldset>
+        <legend>Firmware Download (write to USB device)</legend>
+        <p>
+          <input type="file" id="firmwareFile" name="file"/>
+        </p>
+        <p>
+          <button id="download" disabled="true">Download</button>
+        </p>
+      </fieldset>
+      <fieldset>
+        <legend>Firmware Upload (read from USB device)</legend>
+        <p>
+          <button id="upload" disabled="true">Upload</button>
+        </p>
+      </fieldset>
+    </fieldset>
   </body>
 </html>
