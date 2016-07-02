@@ -66,6 +66,30 @@ var dfu = {};
         )
     };
 
+    dfu.Device.prototype.logDebug = function(msg) {
+
+    };
+
+    dfu.Device.prototype.logInfo = function(msg) {
+        console.log(msg);
+    };
+
+    dfu.Device.prototype.logWarning = function(msg) {
+        console.log(msg);
+    };
+
+    dfu.Device.prototype.logError = function(msg) {
+        console.log(msg);
+    };
+
+    dfu.Device.prototype.logProgress = function(done, total) {
+        if (typeof total === 'undefined') {
+            console.log(done)
+        } else {
+            console.log(done + '/' + total);
+        }
+    };
+
     dfu.Device.prototype.open = function() {
         return this.device_.open()
             .then(() => {
@@ -224,20 +248,31 @@ var dfu = {};
     dfu.Device.prototype.do_upload = function(xfer_size) {
         let transaction = 0;
         let blocks = [];
-        console.log("Copying data from DFU device to browser");
+        let bytes_read = 0;
+
+        this.logInfo("Copying data from DFU device to browser");
 
         let device = this;
         function upload_success(result) {
             if (result.byteLength > 0) {
                 blocks.push(result);
+                bytes_read += result.byteLength;
             }
+
             if (result.byteLength == xfer_size) {
+                // Update progress
+                device.logProgress(bytes_read);
                 return device.upload(xfer_size, transaction++).then(upload_success);
             } else {
+                // Update progress
+                device.logProgress(bytes_read, bytes_read);
                 return Promise.resolve(new Blob(blocks, { type: "application/octet-stream" }));
             }
         }
-        
+
+        // Initialize progress to 0
+        device.logProgress(0);
+
         return device.upload(xfer_size, transaction).then(upload_success);
     };
 
@@ -246,7 +281,7 @@ var dfu = {};
         let expected_size = data.byteLength;
         let transaction = 0;
 
-        console.log("Copying data from browser to DFU device");
+        this.logInfo("Copying data from browser to DFU device");
 
         let device = this;
         function poll_until_idle(result) {
@@ -260,39 +295,55 @@ var dfu = {};
                         }
                         resolve(device.getStatus().then(poll_until_idle, die_on_error))
                     }
-                    console.log("Sleeping for " + result.pollTimeout + "ms");
+                    device.logDebug("Sleeping for " + result.pollTimeout + "ms");
                     setTimeout(poll_after_sleeping, result.pollTimeout);
                 });
                 return deferred;
             }
         }
-        
-        function download_success(bytes_written) {
-            bytes_sent += bytes_written;
-            console.log("Wrote " + bytes_written + " bytes");
-            let bytes_left = expected_size - bytes_sent;
-            let chunk_size = Math.min(bytes_left, xfer_size);
-            
-            device.getStatus().then(poll_until_idle).then(
-                result => {
-                    if (result.status != 0x0) {
-                        throw "DFU DOWNLOAD failed state=${result.state}, status=${result.status}";
-                    }
-                    return Promise.resolve();
-                }
-            ).then(
-                () => {
-                    if (bytes_left > 0) {
-                        return device.download(data.slice(bytes_sent, bytes_sent+chunk_size), transaction++).then(download_success);
-                    } else {
-                        console.log("Sending empty block");
-                        return device.download(new ArrayBuffer([]), transaction++);
-                    }
-                }
-            )
-        }
 
-        return device.download(data.slice(0, xfer_size), transaction++).then(download_success);
+        let finalDownloadPromise = new Promise(function (resolve, reject) {
+            function download_success(bytes_written) {
+                bytes_sent += bytes_written;
+
+                // Update progress
+                device.logProgress(bytes_sent, expected_size);
+
+                device.logDebug("Wrote " + bytes_written + " bytes");
+                device.logDebug("Byte sent so far: " + bytes_sent);
+                let bytes_left = expected_size - bytes_sent;
+                let chunk_size = Math.min(bytes_left, xfer_size);
+
+                device.getStatus().then(poll_until_idle).then(
+                    result => {
+                        if (result.status != 0x0) {
+                            throw "DFU DOWNLOAD failed state=${result.state}, status=${result.status}";
+                        }
+                        return Promise.resolve();
+                    }
+                ).then(
+                    () => {
+                        if (bytes_left > 0) {
+                            return device.download(data.slice(bytes_sent, bytes_sent+chunk_size), transaction++).then(download_success);
+                        } else {
+                            device.logDebug("Sending empty block");
+                            // TODO: manifest application
+                            return device.download(new ArrayBuffer([]), transaction++).then(
+                                () => resolve(bytes_sent),
+                                error => reject(error)
+                            );
+                        }
+                    }
+                )
+            }
+
+            // Initialize progress to 0
+            device.logProgress(bytes_sent, expected_size);
+
+            device.download(data.slice(0, xfer_size), transaction++).then(download_success);
+        });
+
+        return finalDownloadPromise;
     };
     
 })();

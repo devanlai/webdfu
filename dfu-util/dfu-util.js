@@ -30,6 +30,67 @@ var device;
         return info;
     }
 
+    // Current log div element to append to
+    let logContext = null;
+
+    function setLogContext(div) {
+        logContext = div;
+    };
+
+    function clearLog(context) {
+        if (typeof context === 'undefined') {
+            context = logContext;
+        }
+        if (context) {
+            context.innerHTML = "";
+        }
+    }
+
+    function logDebug(msg) {
+        console.log(msg);
+    }
+
+    function logInfo(msg) {
+        if (logContext) {
+            let info = document.createElement("p");
+            info.className = "info";
+            info.textContent = msg;
+            logContext.appendChild(info);
+        }
+    }
+
+    function logWarning(msg) {
+        if (logContext) {
+            let warning = document.createElement("p");
+            warning.className = "warning";
+            warning.textContent = msg;
+            logContext.appendChild(warning);
+        }
+    }
+
+    function logError(msg) {
+        if (logContext) {
+            let error = document.createElement("p");
+            error.className = "error";
+            error.textContent = msg;
+            logContext.appendChild(error);
+        }
+    }
+
+    function logProgress(done, total) {
+        if (logContext) {
+            let progressBar = logContext.querySelector("progress");
+            if (!progressBar) {
+                progressBar = document.createElement("progress");
+                logContext.appendChild(progressBar);
+            }
+            progressBar.value = done;
+            if (typeof total !== 'undefined') {
+                progressBar.max = total;
+            }
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', event => {
         let connectButton = document.querySelector("#connect");
         let detachButton = document.querySelector("#detach");
@@ -44,7 +105,10 @@ var device;
         let transferSize = parseInt(transferSizeField.value);
         let firmwareFileField = document.querySelector("#firmwareFile");
         let firmwareFile = null;
-        
+
+        let downloadLog = document.querySelector("#downloadLog");
+        let uploadLog = document.querySelector("#uploadLog");
+
         //let device;
 
         function onDisconnect(reason) {
@@ -63,6 +127,14 @@ var device;
 
         function connect(device) {
             device.open().then(() => {
+                // Bind logging methods
+                device.logDebug = logDebug;
+                device.logInfo = logInfo;
+                device.logWarning = logWarning;
+                device.logError = logError;
+                device.logProgress = logProgress;
+
+                // Display basic USB information
                 statusDisplay.textContent = '';
                 connectButton.textContent = 'Disconnect';
                 infoDisplay.textContent = (
@@ -136,12 +208,16 @@ var device;
                 onDisconnect();
                 device = null;
             } else {
+                setLogContext(uploadLog);
+                clearLog(uploadLog);
                 device.do_upload(transferSize).then(
                     blob => {
                         saveAs(blob, "firmware.bin");
+                        setLogContext(null);
                     },
                     error => {
-                        statusDisplay.textContent = "Error during upload: " + error;
+                        logError(error);
+                        setLogContext(null);
                     }
                 );
             }
@@ -161,7 +237,14 @@ var device;
 
         downloadButton.addEventListener('click', function() {
             if (device && firmwareFile != null) {
-                device.do_download(transferSize, firmwareFile)
+                setLogContext(downloadLog);
+                clearLog(downloadLog);
+                device.do_download(transferSize, firmwareFile).then(
+                    (bytes_written) => {
+                        logInfo("Wrote " + bytes_written + " bytes");
+                        setLogContext(null);
+                    }
+                )
             }
         });
 

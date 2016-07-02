@@ -6,6 +6,13 @@
     <script src="FileSaver.js"></script>
     <script src="dfu-util.js"></script>
     <style>
+      p.warning {
+        color: red;
+      }
+      p.error {
+        color: red;
+        font-weight: bold;
+      }
     </style>
   </head>
   <body>
@@ -39,12 +46,14 @@
         <p>
           <button id="download" disabled="true">Download</button>
         </p>
+        <div class="log" id="downloadLog"></div>
       </fieldset>
       <fieldset>
         <legend>Firmware Upload (read from USB device)</legend>
         <p>
           <button id="upload" disabled="true">Upload</button>
         </p>
+        <div class="log" id="uploadLog"></div>
       </fieldset>
     </fieldset>
   </body>
