@@ -22,4 +22,4 @@ https://github.com/devanlai/dapboot/tree/webusb
 * Writing new firmware to a device (DFU download)
 * Switching from the runtime configuration to the DFU bootloader (DFU detach)
 
-Currently, the DFU functional descriptors aren't (and possibly can't be) read via WebUSB, so the user is responsible for selecting the correct transfer size and identifying if the device is capable of upload/download.
+Currently, the DFU functional descriptors aren't read via WebUSB, so the user is responsible for selecting the correct transfer size and identifying if the device is capable of upload/download.
