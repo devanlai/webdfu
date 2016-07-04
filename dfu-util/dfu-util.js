@@ -240,8 +240,8 @@ var device;
                 setLogContext(downloadLog);
                 clearLog(downloadLog);
                 device.do_download(transferSize, firmwareFile).then(
-                    (bytes_written) => {
-                        logInfo("Wrote " + bytes_written + " bytes");
+                    () => {
+                        logInfo("Done!");
                         setLogContext(null);
                     }
                 )

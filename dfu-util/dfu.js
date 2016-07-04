@@ -276,6 +276,25 @@ var dfu = {};
         return device.upload(xfer_size, transaction).then(upload_success);
     };
 
+    dfu.Device.prototype.poll_until_idle = function(result, idleState) {
+        if (result.state == idleState || result.state == dfu.dfuERROR) {
+            return Promise.resolve(result);
+        } else {
+            let self = this;
+            let deferred = new Promise(function (resolve, reject) {
+                function poll_after_sleeping() {
+                    resolve(device.getStatus().then(
+                        result => self.poll_until_idle(result, idleState),
+                        error => { throw "Error during getStatus: " + error; })
+                    );
+                }
+                device.logDebug("Sleeping for " + result.pollTimeout + "ms");
+                setTimeout(poll_after_sleeping, result.pollTimeout);
+            });
+            return deferred;
+        }
+    };
+
     dfu.Device.prototype.do_download = function(xfer_size, data) {
         let bytes_sent = 0;
         let expected_size = data.byteLength;
@@ -284,25 +303,15 @@ var dfu = {};
         this.logInfo("Copying data from browser to DFU device");
 
         let device = this;
-        function poll_until_idle(result) {
-            if (result.state == dfu.dfuDNLOAD_IDLE || result.state == dfu.dfuERROR) {
-                return Promise.resolve(result);
-            } else {
-                let deferred = new Promise(function (resolve, reject) {
-                    function poll_after_sleeping() {
-                        function die_on_error(error) {
-                            throw "Error during download getStatus: " + error;
-                        }
-                        resolve(device.getStatus().then(poll_until_idle, die_on_error))
-                    }
-                    device.logDebug("Sleeping for " + result.pollTimeout + "ms");
-                    setTimeout(poll_after_sleeping, result.pollTimeout);
-                });
-                return deferred;
-            }
+        function poll_until_download_idle(result) {
+            return device.poll_until_idle(result, dfu.dfuDNLOAD_IDLE);
         }
 
-        let finalDownloadPromise = new Promise(function (resolve, reject) {
+        function poll_until_dfu_idle(result) {
+            return device.poll_until_idle(result, dfu.dfuIDLE);
+        }
+
+        let downloadOperation = new Promise(function (resolve, reject) {
             function download_success(bytes_written) {
                 bytes_sent += bytes_written;
 
@@ -310,11 +319,10 @@ var dfu = {};
                 device.logProgress(bytes_sent, expected_size);
 
                 device.logDebug("Wrote " + bytes_written + " bytes");
-                device.logDebug("Byte sent so far: " + bytes_sent);
                 let bytes_left = expected_size - bytes_sent;
                 let chunk_size = Math.min(bytes_left, xfer_size);
 
-                device.getStatus().then(poll_until_idle).then(
+                device.getStatus().then(poll_until_download_idle).then(
                     result => {
                         if (result.status != 0x0) {
                             throw "DFU DOWNLOAD failed state=${result.state}, status=${result.status}";
@@ -327,7 +335,6 @@ var dfu = {};
                             return device.download(data.slice(bytes_sent, bytes_sent+chunk_size), transaction++).then(download_success);
                         } else {
                             device.logDebug("Sending empty block");
-                            // TODO: manifest application
                             return device.download(new ArrayBuffer([]), transaction++).then(
                                 () => resolve(bytes_sent),
                                 error => reject(error)
@@ -343,7 +350,21 @@ var dfu = {};
             device.download(data.slice(0, xfer_size), transaction++).then(download_success);
         });
 
-        return finalDownloadPromise;
+        return downloadOperation.then(
+            bytes_written => {
+                device.logInfo("Wrote " + bytes_written + " bytes");
+                // Transition to MANIFEST_SYNC state
+                device.logInfo("Manifesting new firmware");
+                device.getStatus().then(poll_until_dfu_idle).then(
+                    result => {
+                        if (result.status != 0x0) {
+                            throw "DFU MANIFEST failed state=${result.state}, status=${result.status}";
+                        }
+                        return Promise.resolve();
+                    }
+                );
+            }
+        );
     };
     
 })();
