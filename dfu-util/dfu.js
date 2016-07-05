@@ -123,14 +123,122 @@ var dfu = {};
         return this.device_.close();
     };
 
-    // Permissions don't seem to work out
-    /*
-    dfu.Device.prototype.readConfigurationDescriptor = function() {
+    dfu.Device.prototype.readDeviceDescriptor = function() {
+        const GET_DESCRIPTOR = 0x06;
+        const DT_DEVICE = 0x01;
+        const wValue = (DT_DEVICE << 8);
+
+        return this.device_.controlTransferIn({
+            "requestType": "standard",
+            "recipient": "device",
+            "request": GET_DESCRIPTOR,
+            "value": wValue,
+            "index": 0
+        }, 18).then(
+            result => {
+                if (result.status == "ok") {
+                     return Promise.resolve(result.data);
+                } else {
+                    return Promise.reject(result.status);
+                }
+            }
+        );
+    };
+
+    dfu.parseDeviceDescriptor = function(data) {
+        return {
+            bLength:            data.getUint8(0),
+            bDescriptorType:    data.getUint8(1),
+            bcdUSB:             data.getUint16(2, true),
+            bDeviceClass:       data.getUint8(4),
+            bDeviceSubClass:    data.getUint8(5),
+            bDeviceProtocol:    data.getUint8(6),
+            bMaxPacketSize:     data.getUint8(7),
+            idVendor:           data.getUint16(8, true),
+            idProduct:          data.getUint16(10, true),
+            bcdDevice:          data.getUint16(12, true),
+            iManufacturer:      data.getUint8(14),
+            iProduct:           data.getUint8(15),
+            iSerialNumber:      data.getUint8(16),
+            bNumConfigurations: data.getUint8(17),
+        };
+    };
+
+    dfu.parseConfigurationDescriptor = function(data) {
+        let descriptorData = new DataView(data.buffer.slice(9));
+        let descriptors = dfu.parseSubDescriptors(descriptorData);
+        return {
+            bLength:            data.getUint8(0),
+            bDescriptorType:    data.getUint8(1),
+            wTotalLength:       data.getUint16(2, true),
+            bNumInterfaces:     data.getUint8(4),
+            bConfigurationValue:data.getUint8(5),
+            iConfiguration:     data.getUint8(6),
+            bmAttributes:       data.getUint8(7),
+            bMaxPower:          data.getUint8(8),
+            descriptors:        descriptors
+        };
+    };
+
+    dfu.parseInterfaceDescriptor = function(data) {
+        return {
+            bLength:            data.getUint8(0),
+            bDescriptorType:    data.getUint8(1),
+            bInterfaceNumber:   data.getUint8(2),
+            bAlternateSetting:  data.getUint8(3),
+            bNumEndpoints:      data.getUint8(4),
+            bInterfaceClass:    data.getUint8(5),
+            bInterfaceSubClass: data.getUint8(6),
+            bInterfaceProtocol: data.getUint8(7),
+            iInterface:         data.getUint8(8),
+            descriptors:        []
+        };
+    };
+
+    dfu.parseFunctionalDescriptor = function(data) {
+        return {
+            bLength:           data.getUint8(0),
+            bDescriptorType:   data.getUint8(1),
+            bmAttributes:      data.getUint8(2),
+            wDetachTimeOut:    data.getUint16(3, true),
+            wTransferSize:     data.getUint16(5, true),
+            bcdDFUVersion:     data.getUint16(7, true)
+        };
+    };
+
+    dfu.parseSubDescriptors = function(descriptorData) {
+        const DT_INTERFACE = 4;
+        const DT_ENDPOINT = 5;
+        const DT_DFU_FUNCTIONAL = 0x21;
+        let remainingData = descriptorData;
+        let descriptors = [];
+        while (remainingData.byteLength > 2) {
+            let bLength = remainingData.getUint8(0);
+            let bDescriptorType = remainingData.getUint8(1);
+            let descData = new DataView(remainingData.buffer.slice(0, bLength));
+            if (bDescriptorType == DT_INTERFACE) {
+                descriptors.push(dfu.parseInterfaceDescriptor(descData));
+            } else if (bDescriptorType == DT_DFU_FUNCTIONAL) {
+                descriptors.push(dfu.parseFunctionalDescriptor(descData));
+            } else {
+                let desc = {
+                    bLength: bLength,
+                    bDescriptorType: bDescriptorType,
+                    data: descData
+                };
+                descriptors.push(desc);
+            }
+            remainingData = new DataView(remainingData.buffer.slice(bLength));
+        }
+
+        return descriptors;
+    };
+
+    dfu.Device.prototype.readConfigurationDescriptor = function(index) {
         const GET_DESCRIPTOR = 0x06;
         const DT_CONFIGURATION = 0x02;
-        const descIndex = this.settings.configuration.configurationValue;
-        const wValue = ((DT_CONFIGURATION << 8) | descIndex);
-        
+        const wValue = ((DT_CONFIGURATION << 8) | index);
+
         return this.device_.controlTransferIn({
             "requestType": "standard",
             "recipient": "device",
@@ -156,14 +264,13 @@ var dfu = {};
         ).then(
             result => {
                 if (result.status == "ok") {
-                     return Promise.resolve(result.data);
+                    return Promise.resolve(result.data);
                 } else {
                     return Promise.reject(result.status);
                 }
             }
         );
     };
-    */
 
     dfu.Device.prototype.requestOut = function(bRequest, data, wValue=0) {
         return this.device_.controlTransferOut({

@@ -1,16 +1,17 @@
 var device;
+var foo;
 (function() {
     'use strict';
 
-    function formatDFUSummary(device) {
-        function hex4(n) {
-            let s = n.toString(16)
-            while (s.length < 4) {
-                s = '0' + s;
-            }
-            return s;
+    function hex4(n) {
+        let s = n.toString(16)
+        while (s.length < 4) {
+            s = '0' + s;
         }
+        return s;
+    }
 
+    function formatDFUSummary(device) {
         const vid = hex4(device.device_.vendorId);
         const pid = hex4(device.device_.productId);
         const name = device.device_.productName;
@@ -28,6 +29,41 @@ var device;
         const serial = device.device_.serialNumber;
         let info = `Found ${mode}: [${vid}:${pid}] cfg=${cfg}, intf=${intf}, alt=${alt}, name="${name}" serial="${serial}"`;
         return info;
+    }
+
+    function getDFUDescriptorProperties(device) {
+        // Attempt to read the DFU functional descriptor
+        // TODO: read the selected configuration's descriptor
+        return device.readConfigurationDescriptor(0).then(
+            data => {
+                let configDesc = dfu.parseConfigurationDescriptor(data);
+                let funcDesc = null;
+                let configValue = device.settings.configuration.configurationValue;
+                if (configDesc.bConfigurationValue == configValue) {
+                    for (let desc of configDesc.descriptors) {
+                        if (desc.bDescriptorType == 0x21) {
+                            funcDesc = desc;
+                            break;
+                        }
+                    }
+                }
+
+                if (funcDesc) {
+                    return {
+                        WillDetach:            ((funcDesc.bmAttributes & 0x08) != 0),
+                        ManifestationTolerant: ((funcDesc.bmAttributes & 0x04) != 0),
+                        CanUpload:             ((funcDesc.bmAttributes & 0x02) != 0),
+                        CanDnload:             ((funcDesc.bmAttributes & 0x01) != 0),
+                        TransferSize:          funcDesc.wTransferSize,
+                        DetachTimeOut:         funcDesc.wDetachTimeOut,
+                        DFUVersion:            funcDesc.bcdDFUVersion
+                    };
+                } else {
+                    return {};
+                }
+            },
+            error => {}
+        );
     }
 
     // Current log div element to append to
@@ -145,7 +181,19 @@ var device;
                     "Subclass: 0x" + device.device_.deviceSubclass.toString(16) + "\n" +
                         "Protocol: 0x" + device.device_.deviceProtocol.toString(16) + "\n");
 
+                // Display basic dfu-util style info
                 dfuDisplay.textContent = formatDFUSummary(device);
+
+                // Attempt to parse the DFU functional descriptor
+                getDFUDescriptorProperties(device).then(
+                    desc => {
+                        if (desc) {
+                            let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
+                            dfuDisplay.textContent += "\n" + info;
+                            transferSizeField.value = desc.TransferSize;
+                        }
+                    }
+                );
 
                 // Update buttons based on capabilities
                 if (device.settings.alternate.interfaceProtocol == 0x01) {
