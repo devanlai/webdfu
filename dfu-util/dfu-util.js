@@ -296,17 +296,23 @@ var foo;
             }
         });
 
-        dfu.findAllDfuInterfaces().then(
-            devices => {
-                if (devices.length == 0) {
-                    statusDisplay.textContent = 'No device found.';
-                } else {
-                    statusDisplay.textContent = 'Connecting...';
-                    device = devices[0];
-                    console.log(device);
-                    connect(device);
+        // Check if WebUSB is available
+        if (typeof navigator.usb !== 'undefined') {
+            dfu.findAllDfuInterfaces().then(
+                devices => {
+                    if (devices.length == 0) {
+                        statusDisplay.textContent = 'No device found.';
+                    } else {
+                        statusDisplay.textContent = 'Connecting...';
+                        device = devices[0];
+                        console.log(device);
+                        connect(device);
+                    }
                 }
-            }
-        );
+            );
+        } else {
+            statusDisplay.textContent = 'WebUSB not available.'
+            connectButton.disabled = true;
+        }
     });
 })();

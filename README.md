@@ -15,7 +15,7 @@ Adding WebUSB support requires responding to requests for custom WebUSB descript
 
 An example WebUSB-enabled USB DFU bootloader for the STM32F103 can be found here:
 
-https://github.com/devanlai/dapboot/tree/webusb
+https://github.com/devanlai/dapboot
 
 ## Implemented features
 * Reading the current device firmware (DFU upload)

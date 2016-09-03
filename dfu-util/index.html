@@ -38,7 +38,7 @@
     </fieldset>
     <fieldset>
       <label for="transferSize">Transfer Size:</label>
-      <input type="number" name="transferSize" id="transferSize" value="1024"></input>
+      <input type="number" name="transferSize" id="transferSize" value="1024"/>
       <legend>DFU mode</legend>
       <fieldset>
         <legend>Firmware Download (write to USB device)</legend>
@@ -58,5 +58,22 @@
         <div class="log" id="uploadLog"></div>
       </fieldset>
     </fieldset>
+    <h1>About</h1>
+    <p>
+      This is a proof-of-concept demo of host <a href="http://wiki.openmoko.org/wiki/USB_DFU">USB DFU</a> drivers in Javascript utilizing the <a href="https://wicg.github.io/webusb/">WebUSB</a> draft standard to implement USB firmware updates from the browser.
+    </p>
+    <h1>Prerequisites</h1>
+    <p>In order to run this demo, you will need:</p>
+    <ul>
+      <li>
+        <p>An up-to-date version of Chrome, at least version 52 or newer</p>
+        <p>On Chrome 53 and earlier, you must enable the <code>enable-experimental-web-platform-features</code> and <code>enable-webusb</code> flags from the <code>chrome://flags</code> page.</p>
+        <p>On Chrome 54 and later, WebUSB is automatically enabled as an <a href="https://github.com/jpchase/OriginTrials/blob/gh-pages/explainer.md">origin trial</a> on this domain.</p>
+      </li>
+      <li>
+        <p>A USB DFU class device with WebUSB support</p>
+        <p>See <a href="https://github.com/devanlai/dapboot">https://github.com/devanlai/dapboot</a> for a WebUSB DFU bootloader that can be flashed onto <a href="http://wiki.stm32duino.com/index.php?title=Blue_Pill">inexpensive STM32F103 boards</a> for &lt; $10.</p>
+      </li>
+    <ul>
   </body>
 </html>
