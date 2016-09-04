@@ -132,7 +132,6 @@ var configurator;
         let connectButton = document.querySelector("#connect");
         let detachButton = document.querySelector("#detach");
         let downloadButton = document.querySelector("#download");
-        let uploadButton = document.querySelector("#upload");
         let statusDisplay = document.querySelector("#status");
         let infoDisplay = document.querySelector("#usbInfo");
         let dfuDisplay = document.querySelector("#dfuInfo");
@@ -140,11 +139,9 @@ var configurator;
         let vid = parseInt(vidField.value, 16);
         let transferSizeField = document.querySelector("#transferSize");
         let transferSize = parseInt(transferSizeField.value);
-        let firmwareFileField = document.querySelector("#firmwareFile");
         let firmwareFile = null;
 
         let downloadLog = document.querySelector("#downloadLog");
-        let uploadLog = document.querySelector("#uploadLog");
         let mbedLog = document.querySelector("#mbedLog");
         let authnButton = document.querySelector("#authenticate");
         let buildButton = document.querySelector("#build");
@@ -177,9 +174,7 @@ var configurator;
             infoDisplay.textContent = "";
             dfuDisplay.textContent = "";
             detachButton.disabled = true;
-            uploadButton.disabled = true;
             downloadButton.disabled = true;
-            firmwareFileField.disabled = true;
         }
 
         function connect(device) {
@@ -220,16 +215,14 @@ var configurator;
                 if (device.settings.alternate.interfaceProtocol == 0x01) {
                     // Runtime
                     detachButton.disabled = false;
-                    uploadButton.disabled = true;
                     downloadButton.disabled = true;
-                    firmwareFileField.disabled = true;
                 } else {
                     // DFU
                     // TODO: discover capabilities by reading descriptor
                     detachButton.disabled = true;
-                    uploadButton.disabled = false;
-                    downloadButton.disabled = false;
-                    firmwareFileField.disabled = false;
+                    if (firmwareFile != null) {
+                        downloadButton.disabled = false;
+                    }
                 }
             }, error => {
                 onDisconnect(error);
@@ -299,18 +292,6 @@ var configurator;
             }
         });
 
-        firmwareFileField.addEventListener("change", function() {
-            firmwareFile = null;
-            if (firmwareFileField.files.length > 0) {
-                let file = firmwareFileField.files[0];
-                let reader = new FileReader();
-                reader.onload = function() {
-                    firmwareFile = reader.result;
-                };
-                reader.readAsArrayBuffer(file);
-            }
-        });
-
         downloadButton.addEventListener('click', function() {
             if (device && firmwareFile != null) {
                 setLogContext(downloadLog);
@@ -343,6 +324,10 @@ var configurator;
                     let reader = new FileReader();
                     reader.onload = function() {
                         firmwareFile = reader.result;
+                        if (firmwareFile != null && device &&
+                            (device.settings.alternate.interfaceProtocol != 0x01)) {
+                            downloadButton.disabled = false;
+                        }
                     };
                     reader.readAsArrayBuffer(blob);
                 },

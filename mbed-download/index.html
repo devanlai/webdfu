@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <!-- Origin Trial Token, feature = WebUSB, origin = https://devanlai.github.io, expires = 2016-10-14 -->
+    <meta http-equiv="origin-trial" data-feature="WebUSB" data-expires="2016-10-14" content="AjirHtjN8eUeqWkrFTlx7R/Y0WbVjY7nxDHYhRdUQ14NFNVt1yMhOn6MfWuiMU3ld194qd/riiL1xCq+xzPH1AIAAABXeyJvcmlnaW4iOiAiaHR0cHM6Ly9kZXZhbmxhaS5naXRodWIuaW86NDQzIiwgImZlYXR1cmUiOiAiV2ViVVNCIiwgImV4cGlyeSI6IDE0NzY0NzMxMTl9">
     <title>WebUSB mbed DFU</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.3/jquery.min.js"></script>
     <script src="mbed-compile-api.js"></script>
@@ -35,7 +37,7 @@
         <legend>Remote Compiler API</legend>
         <p>
           <label for="repoURL">Repository URL: </label>
-          <input type="url" name="repoURL" id="repoURL" value="https://developer.mbed.org/users/devanlai/code/STM32F103C8T6_USBDFU/" size="72"/>
+          <input type="url" name="repoURL" id="repoURL" value="https://developer.mbed.org/users/devanlai/code/STM32F103C8T6_WebUSBDFU/" size="72"/>
         </p>
         <p>
           <label for="targetPlatform">Target Platform: </label>
@@ -71,24 +73,14 @@
     </fieldset>
     <fieldset>
       <label for="transferSize">Transfer Size:</label>
-      <input type="number" name="transferSize" id="transferSize" value="1024"></input>
+      <input type="number" name="transferSize" id="transferSize" value="1024"/>
       <legend>DFU mode</legend>
       <fieldset>
         <legend>Firmware Download (write to USB device)</legend>
         <p>
-          <input type="file" id="firmwareFile" name="file" disabled="true"/>
-        </p>
-        <p>
           <button id="download" disabled="true">Download</button>
         </p>
         <div class="log" id="downloadLog"></div>
-      </fieldset>
-      <fieldset>
-        <legend>Firmware Upload (read from USB device)</legend>
-        <p>
-          <button id="upload" disabled="true">Upload</button>
-        </p>
-        <div class="log" id="uploadLog"></div>
       </fieldset>
     </fieldset>
   </body>
