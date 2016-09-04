@@ -276,7 +276,11 @@
                     var filename = data.binary;
                     var type = xhr.getResponseHeader('Content-Type');
                     var blob = new Blob([response], { type: type });
-                    resolve(blob);
+                    var result = {
+                        "metadata": data,
+                        "blob": blob,
+                    }
+                    resolve(result);
                 },
                 error: function(response) {
                     reject(response.responseText);

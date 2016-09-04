@@ -17,6 +17,11 @@
         color: red;
         font-weight: bold;
       }
+      div.buildLog {
+        max-height: 100ex;
+        overflow: scroll;
+        font-family: monospace;
+      }
     </style>
   </head>
   <body>
@@ -49,9 +54,10 @@
           <button type="button" name="build" id="build" disabled>Build</button>
         </p>
       </fieldset>
-      <p>
-        <span id="mbedLog"></span>
-      </p>
+      <fieldset>
+        <legend>Build Output</legend>
+        <div id="mbedLog" class="buildLog"></div>
+      </fieldset>
     </fieldset>
     <p>
       <span id="status"></span>
@@ -79,6 +85,7 @@
         <legend>Firmware Download (write to USB device)</legend>
         <p>
           <button id="download" disabled="true">Download</button>
+          <span id="binaryInfo"></span>
         </p>
         <div class="log" id="downloadLog"></div>
       </fieldset>

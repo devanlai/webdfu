@@ -128,6 +128,10 @@ var configurator;
         }
     }
 
+    function displayBinarySummary(context, metadata) {
+        context.textContent = `${metadata.binary} (${metadata.link_totals.code}B)`;
+    }
+
     document.addEventListener('DOMContentLoaded', event => {
         let connectButton = document.querySelector("#connect");
         let detachButton = document.querySelector("#detach");
@@ -135,6 +139,7 @@ var configurator;
         let statusDisplay = document.querySelector("#status");
         let infoDisplay = document.querySelector("#usbInfo");
         let dfuDisplay = document.querySelector("#dfuInfo");
+        let binDisplay = document.querySelector("#binaryInfo");
         let vidField = document.querySelector("#vid");
         let vid = parseInt(vidField.value, 16);
         let transferSizeField = document.querySelector("#transferSize");
@@ -161,6 +166,7 @@ var configurator;
             }
 
             mbedLog.appendChild(info);
+            mbedLog.scrollTop = mbedLog.scrollHeight;
         };
 
         configurator = new mbedCompileApi(logMbedMessage);
@@ -317,10 +323,11 @@ var configurator;
         buildButton.addEventListener('click', function() {
             let urlField = document.querySelector("#repoURL");
             let targetField = document.querySelector("#targetPlatform");
+            clearLog(mbedLog);
             let repo = urlField.value;
             let target = targetField.value;
             configurator.buildRepoAsPromise({}, repo, target).then(
-                blob => {
+                result => {
                     let reader = new FileReader();
                     reader.onload = function() {
                         firmwareFile = reader.result;
@@ -329,7 +336,8 @@ var configurator;
                             downloadButton.disabled = false;
                         }
                     };
-                    reader.readAsArrayBuffer(blob);
+                    reader.readAsArrayBuffer(result.blob);
+                    displayBinarySummary(binDisplay, result.metadata);
                 },
                 err => {
                     logMbedMessage(err);
