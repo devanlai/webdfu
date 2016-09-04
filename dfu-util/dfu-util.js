@@ -213,7 +213,21 @@ var foo;
             }, error => {
                 onDisconnect(error);
             });
-            
+        }
+
+        function autoConnect() {
+            dfu.findAllDfuInterfaces().then(
+                devices => {
+                    if (devices.length == 0) {
+                        statusDisplay.textContent = 'No device found.';
+                    } else {
+                        statusDisplay.textContent = 'Connecting...';
+                        device = devices[0];
+                        console.log(device);
+                        connect(device);
+                    }
+                }
+            );
         }
 
         vidField.addEventListener("change", function() {
@@ -247,10 +261,23 @@ var foo;
 
         detachButton.addEventListener('click', function() {
             if (device) {
-                device.detach();
+                device.detach().then(
+                    len => {
+                        device.close();
+                        onDisconnect();
+                        device = null;
+                        // Wait a few seconds and try reconnecting
+                        setTimeout(autoConnect, 5000);
+                    },
+                    error => {
+                        device.close();
+                        onDisconnect(error);
+                        device = null;
+                    }
+                );
             }
         });
-        
+
         uploadButton.addEventListener('click', function() {
             if (!device || !device.device_.opened) {
                 onDisconnect();
@@ -298,18 +325,8 @@ var foo;
 
         // Check if WebUSB is available
         if (typeof navigator.usb !== 'undefined') {
-            dfu.findAllDfuInterfaces().then(
-                devices => {
-                    if (devices.length == 0) {
-                        statusDisplay.textContent = 'No device found.';
-                    } else {
-                        statusDisplay.textContent = 'Connecting...';
-                        device = devices[0];
-                        console.log(device);
-                        connect(device);
-                    }
-                }
-            );
+            // Try connecting automatically
+            autoConnect();
         } else {
             statusDisplay.textContent = 'WebUSB not available.'
             connectButton.disabled = true;

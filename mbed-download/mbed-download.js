@@ -234,7 +234,21 @@ var configurator;
             }, error => {
                 onDisconnect(error);
             });
-            
+        }
+
+        function autoConnect() {
+            dfu.findAllDfuInterfaces().then(
+                devices => {
+                    if (devices.length == 0) {
+                        statusDisplay.textContent = 'No device found.';
+                    } else {
+                        statusDisplay.textContent = 'Connecting...';
+                        device = devices[0];
+                        console.log(device);
+                        connect(device);
+                    }
+                }
+            );
         }
 
         vidField.addEventListener("change", function() {
@@ -268,25 +282,18 @@ var configurator;
 
         detachButton.addEventListener('click', function() {
             if (device) {
-                device.detach();
-            }
-        });
-        
-        uploadButton.addEventListener('click', function() {
-            if (!device || !device.device_.opened) {
-                onDisconnect();
-                device = null;
-            } else {
-                setLogContext(uploadLog);
-                clearLog(uploadLog);
-                device.do_upload(transferSize).then(
-                    blob => {
-                        saveAs(blob, "firmware.bin");
-                        setLogContext(null);
+                device.detach().then(
+                    len => {
+                        device.close();
+                        onDisconnect();
+                        device = null;
+                        // Wait a few seconds and try reconnecting
+                        setTimeout(autoConnect, 5000);
                     },
                     error => {
-                        logError(error);
-                        setLogContext(null);
+                        device.close();
+                        onDisconnect(error);
+                        device = null;
                     }
                 );
             }
@@ -345,17 +352,13 @@ var configurator;
             )
         });
 
-        dfu.findAllDfuInterfaces().then(
-            devices => {
-                if (devices.length == 0) {
-                    statusDisplay.textContent = 'No device found.';
-                } else {
-                    statusDisplay.textContent = 'Connecting...';
-                    device = devices[0];
-                    console.log(device);
-                    connect(device);
-                }
-            }
-        );
+        // Check if WebUSB is available
+        if (typeof navigator.usb !== 'undefined') {
+            // Try connecting automatically
+            autoConnect();
+        } else {
+            statusDisplay.textContent = 'WebUSB not available.'
+            connectButton.disabled = true;
+        }
     });
 })();
