@@ -41,7 +41,7 @@ var foo;
                 let configValue = device.settings.configuration.configurationValue;
                 if (configDesc.bConfigurationValue == configValue) {
                     for (let desc of configDesc.descriptors) {
-                        if (desc.bDescriptorType == 0x21) {
+                        if (desc.bDescriptorType == 0x21 && desc.hasOwnProperty("bcdDFUVersion")) {
                             funcDesc = desc;
                             break;
                         }
@@ -187,7 +187,7 @@ var foo;
                 // Attempt to parse the DFU functional descriptor
                 getDFUDescriptorProperties(device).then(
                     desc => {
-                        if (desc) {
+                        if (desc && Object.keys(desc).length > 0) {
                             let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
                             dfuDisplay.textContent += "\n" + info;
                             transferSizeField.value = desc.TransferSize;
