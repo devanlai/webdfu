@@ -127,6 +127,15 @@ var foo;
         }
     }
 
+    function getVidFromQueryString(queryString) {
+        let results = /[&?]vid=(0x[0-9a-fA-F]{1,4})/.exec(queryString);
+        if (results) {
+            return results[1];
+        } else {
+            return "";
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', event => {
         let connectButton = document.querySelector("#connect");
         let detachButton = document.querySelector("#detach");
@@ -136,6 +145,12 @@ var foo;
         let infoDisplay = document.querySelector("#usbInfo");
         let dfuDisplay = document.querySelector("#dfuInfo");
         let vidField = document.querySelector("#vid");
+
+        let vidFromUrl = getVidFromQueryString(window.location.search);
+        if (vidFromUrl) {
+            vidField.value = vidFromUrl;
+        }
+
         let vid = parseInt(vidField.value, 16);
         let transferSizeField = document.querySelector("#transferSize");
         let transferSize = parseInt(transferSizeField.value);
