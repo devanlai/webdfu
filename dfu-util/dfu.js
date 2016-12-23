@@ -210,15 +210,26 @@ var dfu = {};
         const DT_INTERFACE = 4;
         const DT_ENDPOINT = 5;
         const DT_DFU_FUNCTIONAL = 0x21;
+        const USB_CLASS_APP_SPECIFIC = 0xFE;
+        const USB_SUBCLASS_DFU = 0x01;
         let remainingData = descriptorData;
         let descriptors = [];
+        let currIntf;
+        let inDfuIntf = false;
         while (remainingData.byteLength > 2) {
             let bLength = remainingData.getUint8(0);
             let bDescriptorType = remainingData.getUint8(1);
             let descData = new DataView(remainingData.buffer.slice(0, bLength));
             if (bDescriptorType == DT_INTERFACE) {
-                descriptors.push(dfu.parseInterfaceDescriptor(descData));
-            } else if (bDescriptorType == DT_DFU_FUNCTIONAL) {
+                currIntf = dfu.parseInterfaceDescriptor(descData);
+                if (currIntf.bInterfaceClass == USB_CLASS_APP_SPECIFC &&
+                    currIntf.bInterfaceSubclass == USB_SUBCLASS_DFU) {
+                    inDfuIntf = true;
+                } else {
+                    inDfuIntf = false;
+                }
+                descriptors.push(currIntf);
+            } else if (inDfuIntf && bDescriptorType == DT_DFU_FUNCTIONAL) {
                 descriptors.push(dfu.parseFunctionalDescriptor(descData));
             } else {
                 let desc = {
