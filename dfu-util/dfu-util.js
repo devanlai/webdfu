@@ -199,17 +199,6 @@ var foo;
                 // Display basic dfu-util style info
                 dfuDisplay.textContent = formatDFUSummary(device);
 
-                // Attempt to parse the DFU functional descriptor
-                getDFUDescriptorProperties(device).then(
-                    desc => {
-                        if (desc && Object.keys(desc).length > 0) {
-                            let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
-                            dfuDisplay.textContent += "\n" + info;
-                            transferSizeField.value = desc.TransferSize;
-                        }
-                    }
-                );
-
                 // Update buttons based on capabilities
                 if (device.settings.alternate.interfaceProtocol == 0x01) {
                     // Runtime
@@ -219,12 +208,30 @@ var foo;
                     firmwareFileField.disabled = true;
                 } else {
                     // DFU
-                    // TODO: discover capabilities by reading descriptor
                     detachButton.disabled = true;
                     uploadButton.disabled = false;
                     downloadButton.disabled = false;
                     firmwareFileField.disabled = false;
                 }
+
+                // Attempt to parse the DFU functional descriptor
+                getDFUDescriptorProperties(device).then(
+                    desc => {
+                        if (desc && Object.keys(desc).length > 0) {
+                            let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
+                            dfuDisplay.textContent += "\n" + info;
+                            transferSizeField.value = desc.TransferSize;
+                            if (device.settings.alternate.interfaceProtocol == 0x02) {
+                                if (!desc.CanUpload) {
+                                    uploadButton.disabled = true;
+                                }
+                                if (!desc.CanDnload) {
+                                    dnloadButton.disabled = true;
+                                }
+                            }
+                        }
+                    }
+                );
             }, error => {
                 onDisconnect(error);
             });
