@@ -93,6 +93,7 @@ var configurator;
             info.className = "info";
             info.textContent = msg;
             logContext.appendChild(info);
+            logContext.scrollTop = logContext.scrollHeight;
         }
     }
 
@@ -102,6 +103,7 @@ var configurator;
             warning.className = "warning";
             warning.textContent = msg;
             logContext.appendChild(warning);
+            logContext.scrollTop = logContext.scrollHeight;
         }
     }
 
@@ -111,6 +113,7 @@ var configurator;
             error.className = "error";
             error.textContent = msg;
             logContext.appendChild(error);
+            logContext.scrollTop = logContext.scrollHeight;
         }
     }
 
@@ -120,6 +123,7 @@ var configurator;
             if (!progressBar) {
                 progressBar = document.createElement("progress");
                 logContext.appendChild(progressBar);
+                logContext.scrollTop = logContext.scrollHeight;
             }
             progressBar.value = done;
             if (typeof total !== 'undefined') {
@@ -159,11 +163,14 @@ var configurator;
         let transferSizeField = document.querySelector("#transferSize");
         let transferSize = parseInt(transferSizeField.value);
         let firmwareFile = null;
+        let firmwareFilename = null;
 
         let downloadLog = document.querySelector("#downloadLog");
         let mbedLog = document.querySelector("#mbedLog");
         let authnButton = document.querySelector("#authenticate");
         let buildButton = document.querySelector("#build");
+        let saveButton = document.querySelector("#save");
+        let progButton = document.querySelector("#buildAndProgram");
 
         //let device;
 
@@ -195,6 +202,7 @@ var configurator;
             dfuDisplay.textContent = "";
             detachButton.disabled = true;
             downloadButton.disabled = true;
+            progButton.disabled = true;
         }
 
         function connect(device) {
@@ -230,6 +238,9 @@ var configurator;
                     detachButton.disabled = true;
                     if (firmwareFile != null) {
                         downloadButton.disabled = false;
+                    }
+                    if (!buildButton.disabled) {
+                        progButton.disabled = false;
                     }
                 }
 
@@ -334,44 +345,119 @@ var configurator;
             let passwordField = document.querySelector("#password");
             configurator.setCredentials(usernameField.value, passwordField.value);
             buildButton.disabled = false;
-            
+            if (device && device.settings.alternate.interfaceProtocol != 0x01) {
+                progButton.disabled = false;
+            }
             return false;
         });
+
+        function buildAndDownloadFirmware() {
+            return new Promise(function(resolve, reject) {
+                let buildForm = document.querySelector("#buildForm")
+
+                let target = buildForm.elements["targetPlatform"].value;
+                let symbols = {};
+                
+                let buildPromise;
+                if (buildForm.elements["buildType"].value == "program") {
+                    let program = buildForm.elements["programName"].value;
+                    buildPromise = configurator.buildProgramAsPromise(symbols, program, target);
+                } else {
+                    let repo = buildForm.elements["repoURL"].value
+                    buildPromise = configurator.buildRepoAsPromise(symbols, repo, target);
+                }
+
+                buildPromise.then(
+                    result => {
+                        let reader = new FileReader();
+                        reader.onload = function() {
+                            let readResult = {
+                                "metadata": result.metadata,
+                                "data": reader.result
+                            };
+                            resolve(readResult);
+                        };
+                        reader.readAsArrayBuffer(result.blob);
+                    },
+                    err => {
+                        reject(err);
+                    }
+                )
+            });
+        }
 
         buildButton.addEventListener('click', function() {
             clearLog(mbedLog);
 
-            let buildForm = document.querySelector("#buildForm")
+            saveButton.disabled = true;
+            firmwareFile = null;
+            firmwareFilename = null;
 
-            let target = buildForm.elements["targetPlatform"].value;
-            let symbols = {};
-            
-            let buildPromise;
-            if (buildForm.elements["buildType"].value == "program") {
-                let program = buildForm.elements["programName"].value;
-                buildPromise = configurator.buildProgramAsPromise(symbols, program, target);
-            } else {
-                let repo = buildForm.elements["repoURL"].value
-                buildPromise = configurator.buildRepoAsPromise(symbols, repo, target);
-            }
-            
-            buildPromise.then(
+            buildAndDownloadFirmware().then(
                 result => {
-                    let reader = new FileReader();
-                    reader.onload = function() {
-                        firmwareFile = reader.result;
-                        if (firmwareFile != null && device &&
-                            (device.settings.alternate.interfaceProtocol != 0x01)) {
-                            downloadButton.disabled = false;
-                        }
-                    };
-                    reader.readAsArrayBuffer(result.blob);
+                    logMbedMessage("Retrieved firmware from server");
+                    firmwareFile = result.data;
+                    if (firmwareFile != null && device &&
+                        (device.settings.alternate.interfaceProtocol != 0x01)) {
+                        downloadButton.disabled = false;
+                        saveButton.disabled = false;
+                    }
+                    firmwareFilename = result.metadata.binary;
                     displayBinarySummary(binDisplay, result.metadata);
                 },
                 err => {
                     logMbedMessage(err);
                 }
-            )
+            );
+
+            return false;
+        });
+
+        saveButton.addEventListener('click', function() {
+            if (firmwareFile) {
+                let blob = new Blob([firmwareFile]);
+                if (!firmwareFilename) {
+                    firmwareFilename = "firmware.bin";
+                }
+                saveAs(blob, firmwareFilename);
+            }
+            return false;
+        });
+
+        progButton.addEventListener('click', function() {
+            clearLog(mbedLog);
+
+            saveButton.disabled = true;
+            firmwareFile = null;
+            firmwareFilename = null;
+
+            buildAndDownloadFirmware().then(
+                result => {
+                    logMbedMessage("Retrieved firmware from server");
+                    firmwareFile = result.data;
+                    if (firmwareFile != null && device &&
+                        (device.settings.alternate.interfaceProtocol != 0x01)) {
+                        downloadButton.disabled = false;
+                        saveButton.disabled = false;
+
+                        // Try flashing the target
+                        setLogContext(mbedLog);
+                        device.do_download(transferSize, firmwareFile).then(
+                            () => {
+                                logInfo("Done!");
+                                setLogContext(null);
+                            }
+                        )
+                    }
+                    firmwareFilename = result.metadata.binary;
+                    displayBinarySummary(binDisplay, result.metadata);
+                },
+                err => {
+                    logMbedMessage(err);
+                }
+            );
+
+            return false;
         });
 
         // Check if WebUSB is available
