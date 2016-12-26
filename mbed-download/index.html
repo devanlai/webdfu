@@ -130,5 +130,44 @@
         </fieldset>
       </fieldset>
     </fieldset>
+    <h1>About</h1>
+    <p>
+      This is a proof of concept using <a href="https://wicg.github.io/webusb/">WebUSB</a> and the <a href="https://developer.mbed.org/handbook/Compile-API">mbed remote compilation API</a> to build and flash mbed binaries to microcontrollers from entirely within the browser. Unlike <a href="https://create.arduino.cc/">Arduino Create</a> and <a href="https://codebender.cc/">Codebender</a>, this demo does not require the installation of a binary proxy-agent or browser plugin.
+    </p>
+    <h1>Prerequisites</h1>
+    <p>In order to run this demo, you will need:</p>
+    <ul>
+      <li>
+        An up-to-date version of Chrome, at least version 54 or newer
+      </li>
+      <li>
+        An <a href="https://developer.mbed.org/">mbed.org</a> account.
+      </li>
+      <li>
+        A USB DFU class device with WebUSB support
+        <ul>
+          <li>
+            <a href="http://www.st.com/en/evaluation-tools/nucleo-f103rb.html">Nucleo F103RB development boards</a> can be flashed with a <a href="https://github.com/devanlai/DAPLink/tree/nucleo_webusb">modified version</a> of the <a href="https://developer.mbed.org/handbook/DAPLink">mbed DAPLink firmware</a> with WebUSB support.
+          </li>
+        </ul>
+      </li>
+    </ul>
+    <h1>Limitations</h1>
+    <ul>
+      <li>
+        mbed login credentials must be supplied every time the page is loaded - the remote compile API only offers basic HTTP(S) auth
+      </li>
+      <li>
+        The DAPLink firmware with WebUSB support only works under Linux and macOS - Windows requires additional work to load a generic driver for the DFU interface.
+      </li>
+      <li>
+        The Nucleo F103RB development board is the only supported mbed board at this time.
+        <ul>
+          <li>
+            The original STLink/v2-1 firmware cannot be restored after flashing the modified DAPLink firmware.
+          </li>
+        </ul>
+      </li>
+    </ul>
   </body>
 </html>
