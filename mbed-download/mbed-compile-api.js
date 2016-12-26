@@ -75,6 +75,19 @@
         this.build(symbols, program, target)
     };
 
+    mbedCompileApi.prototype.buildProgramAsPromise = function(symbols, program, target) {
+        var mbed = this;
+        let promise = new Promise(function (resolve, reject) {
+            mbed.resolve = resolve;
+            mbed.reject = reject;
+        });
+
+        this.repomode = false;
+        this.build(symbols, program, target);
+
+        return promise;
+    };
+
     // Build a program in users workspace
     mbedCompileApi.prototype.build = function(symbols, code, target) {
         var symbolsArray = [];
@@ -85,8 +98,7 @@
 
         var payload = {
             platform: target,
-            //target:target,
-            //clean: false,
+            clean: true,
             extra_symbols: symbolsArray.join(",")
         };
         // set repo or program mode accordingly

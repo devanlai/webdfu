@@ -22,6 +22,16 @@
         overflow: scroll;
         font-family: monospace;
       }
+      label.rightAligned {
+        display: inline-block;
+        width: 20ex;
+        text-align: right;
+      }
+      label.leftAligned {
+        display: inline-block;
+        width: 16ex;
+        text-align: left;
+      }
     </style>
   </head>
   <body>
@@ -29,11 +39,14 @@
       <legend>mbed</legend>
       <form>
         <p>
-          <label for="username">mbed Username: </label>
+          Login with your developer.mbed.org credentials. The <a href="https://developer.mbed.org/handbook/Compile-API">mbed remote compile API</a> only supports HTTP(S) basic auth...
+        </p>
+        <p>
+          <label for="username" class="rightAligned">mbed Username: </label>
           <input type="text" name="username" id="username"></input>
         </p>
         <p>
-          <label for="password">Password: </label>
+          <label for="password" class="rightAligned">Password: </label>
           <input type="password" name="password" id="password"></input>
           <button type="button" id="authenticate">Set Credentials</button>
         </p>
@@ -41,53 +54,78 @@
       <fieldset>
         <legend>Remote Compiler API</legend>
         <p>
-          <label for="repoURL">Repository URL: </label>
-          <input type="url" name="repoURL" id="repoURL" value="https://developer.mbed.org/users/devanlai/code/STM32F103C8T6_WebUSBDFU/" size="72"/>
+          Provide either the name of a program in your online <a href="https://developer.mbed.org/compiler/">mbed compiler workspace</a> or a fully qualified URL to a published repository on <a href="https://developer.mbed.org/code/">developer.mbed.org</a>
         </p>
-        <p>
-          <label for="targetPlatform">Target Platform: </label>
-          <select name="targetPlatform" id="targetPlatform">
-            <option value="ST-Nucleo-F103RB" selected>NUCLEO-F103RB</option>
-          </select>
-        </p>
-        <p>
-          <button type="button" name="build" id="build" disabled>Build</button>
-        </p>
+        <form id="buildForm">
+          <p>
+            <input type="radio" name="buildType" value="program" checked="true">
+            <label for="programName" class="leftAligned">Program name: </label>
+            <input type="text" name="programName" id="programName" value="mbed_blinky" size="60"/>
+          </input>
+          </p>
+          <p>
+            <input type="radio" name="buildType" value="repo">
+            <label for="repoURL" class="leftAligned">Repository URL: </label>
+            <input type="url" name="repoURL" id="repoURL" value="https://developer.mbed.org/users/devanlai/code/STM32F103C8T6_WebUSBDFU/" size="60"/>
+          </input>
+          </p>
+          <p>
+            <label for="targetPlatform">Target Platform: </label>
+            <select name="targetPlatform" id="targetPlatform">
+              <option value="ST-Nucleo-F103RB" selected>NUCLEO-F103RB</option>
+            </select>
+          </p>
+          <p>
+            <button type="button" name="build" id="build" disabled>Build</button>
+          </p>
+        </form>
       </fieldset>
       <fieldset>
         <legend>Build Output</legend>
         <div id="mbedLog" class="buildLog"></div>
       </fieldset>
     </fieldset>
-    <p>
-      <span id="status"></span>
-    </p>
-    <p>
-      <label for="vid">Vendor ID (hex):</label>
-      <input type="text" name="vid" id="vid" value="0x1209" maxlength="6" size="6"/>
-    </p>
-    <p>
-      <button id="connect">Connect</button>
-    </p>
-    <p>
-      <div id="usbInfo" style="white-space: pre"></div>
-      <div id="dfuInfo" style="white-space: pre"></div>
-    </p>
     <fieldset>
-      <legend>Runtime mode</legend>
-      <button id="detach" disabled="true">Detach DFU</button>
-    </fieldset>
-    <fieldset>
-      <label for="transferSize">Transfer Size:</label>
-      <input type="number" name="transferSize" id="transferSize" value="1024"/>
-      <legend>DFU mode</legend>
+      <legend>WebUSB</legend>
+      <p>Enter the USB Vendor ID to filter connected WebUSB devices.
+        <ul>
+          <li>Boards with a <a href="https://github.com/devanlai/DAPLink/tree/nucleo_webusb">DAPLink</a> debug interface have a vendor ID of 0x0D28</li>
+          <li>Boards with the <a href="https://github.com/devanlai/dapboot/tree/highboot">dapboot</a> bootloader have a vendor ID of 0x1209 in DFU mode</li>
+        </ul>
+      </p>
+      <p>
+        <label for="vid">Vendor ID (hex):</label>
+        <input type="text" name="vid" id="vid" value="0x1209" maxlength="6" size="6"/>
+      </p>
+      <p>
+        <span id="status"></span>
+      </p>
+      <p>
+        <button id="connect">Connect</button>
+      </p>
+      <p>
+        <div id="usbInfo" style="white-space: pre"></div>
+        <div id="dfuInfo" style="white-space: pre"></div>
+      </p>
       <fieldset>
-        <legend>Firmware Download (write to USB device)</legend>
+        <legend>Runtime mode</legend>
         <p>
-          <button id="download" disabled="true">Download</button>
-          <span id="binaryInfo"></span>
+          If the device has a <a href="http://www.usb.org/developers/docs/devclass_docs/DFU_1.1.pdf">USB DFU</a> bootloader installed, use the detach button to switch from runtime mode to DFU mode.
         </p>
-        <div class="log" id="downloadLog"></div>
+        <button id="detach" disabled="true">Detach DFU</button>
+      </fieldset>
+      <fieldset>
+        <label for="transferSize">Transfer Size:</label>
+        <input type="number" name="transferSize" id="transferSize" value="1024"/>
+        <legend>DFU mode</legend>
+        <fieldset>
+          <legend>Firmware Download (write to USB device)</legend>
+          <p>
+            <button id="download" disabled="true">Download</button>
+            <span id="binaryInfo"></span>
+          </p>
+          <div class="log" id="downloadLog"></div>
+        </fieldset>
       </fieldset>
     </fieldset>
   </body>

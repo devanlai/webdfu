@@ -42,7 +42,7 @@ var configurator;
                 let configValue = device.settings.configuration.configurationValue;
                 if (configDesc.bConfigurationValue == configValue) {
                     for (let desc of configDesc.descriptors) {
-                        if (desc.bDescriptorType == 0x21) {
+                        if (desc.bDescriptorType == 0x21 && desc.hasOwnProperty("bcdDFUVersion")) {
                             funcDesc = desc;
                             break;
                         }
@@ -128,6 +128,15 @@ var configurator;
         }
     }
 
+    function getVidFromQueryString(queryString) {
+        let results = /[&?]vid=(0x[0-9a-fA-F]{1,4})/.exec(queryString);
+        if (results) {
+            return results[1];
+        } else {
+            return "";
+        }
+    }
+
     function displayBinarySummary(context, metadata) {
         context.textContent = `${metadata.binary} (${metadata.link_totals.code}B)`;
     }
@@ -141,6 +150,11 @@ var configurator;
         let dfuDisplay = document.querySelector("#dfuInfo");
         let binDisplay = document.querySelector("#binaryInfo");
         let vidField = document.querySelector("#vid");
+        let vidFromUrl = getVidFromQueryString(window.location.search);
+        if (vidFromUrl) {
+            vidField.value = vidFromUrl;
+        }
+        
         let vid = parseInt(vidField.value, 16);
         let transferSizeField = document.querySelector("#transferSize");
         let transferSize = parseInt(transferSizeField.value);
@@ -206,17 +220,6 @@ var configurator;
                 // Display basic dfu-util style info
                 dfuDisplay.textContent = formatDFUSummary(device);
 
-                // Attempt to parse the DFU functional descriptor
-                getDFUDescriptorProperties(device).then(
-                    desc => {
-                        if (desc) {
-                            let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
-                            dfuDisplay.textContent += "\n" + info;
-                            transferSizeField.value = desc.TransferSize;
-                        }
-                    }
-                );
-
                 // Update buttons based on capabilities
                 if (device.settings.alternate.interfaceProtocol == 0x01) {
                     // Runtime
@@ -224,12 +227,27 @@ var configurator;
                     downloadButton.disabled = true;
                 } else {
                     // DFU
-                    // TODO: discover capabilities by reading descriptor
                     detachButton.disabled = true;
                     if (firmwareFile != null) {
                         downloadButton.disabled = false;
                     }
                 }
+
+                // Attempt to parse the DFU functional descriptor
+                getDFUDescriptorProperties(device).then(
+                    desc => {
+                        if (desc && Object.keys(desc).length > 0) {
+                            let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
+                            dfuDisplay.textContent += "\n" + info;
+                            transferSizeField.value = desc.TransferSize;
+                            if (device.settings.alternate.interfaceProtocol == 0x02) {
+                                if (!desc.CanDnload) {
+                                    dnloadButton.disabled = true;
+                                }
+                            }
+                        }
+                    }
+                );
             }, error => {
                 onDisconnect(error);
             });
@@ -321,12 +339,23 @@ var configurator;
         });
 
         buildButton.addEventListener('click', function() {
-            let urlField = document.querySelector("#repoURL");
-            let targetField = document.querySelector("#targetPlatform");
             clearLog(mbedLog);
-            let repo = urlField.value;
-            let target = targetField.value;
-            configurator.buildRepoAsPromise({}, repo, target).then(
+
+            let buildForm = document.querySelector("#buildForm")
+
+            let target = buildForm.elements["targetPlatform"].value;
+            let symbols = {};
+            
+            let buildPromise;
+            if (buildForm.elements["buildType"].value == "program") {
+                let program = buildForm.elements["programName"].value;
+                buildPromise = configurator.buildProgramAsPromise(symbols, program, target);
+            } else {
+                let repo = buildForm.elements["repoURL"].value
+                buildPromise = configurator.buildRepoAsPromise(symbols, repo, target);
+            }
+            
+            buildPromise.then(
                 result => {
                     let reader = new FileReader();
                     reader.onload = function() {
