@@ -15,6 +15,9 @@
         color: red;
         font-weight: bold;
       }
+      input:invalid {
+        color:red;
+      }
     </style>
   </head>
   <body>
@@ -23,7 +26,11 @@
     </p>
     <p>
       <label for="vid">Vendor ID (hex):</label>
-      <input type="text" name="vid" id="vid" value="0x1209" maxlength="6" size="6"/>
+      <input list="vendor_ids" type="text" name="vid" id="vid" value="0x1209" maxlength="6" size="8" pattern="0x[A-Fa-f0-9]{1,4}"/>
+      <datalist id="vendor_ids">
+        <option value="0x1209">dapboot DFU bootloader</option>
+        <option value="0x0D28">mbed DAPLink</option>
+      </datalist>
     </p>
     <p>
       <button id="connect">Connect</button>

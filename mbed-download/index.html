@@ -18,7 +18,8 @@
         font-weight: bold;
       }
       div.buildLog {
-        max-height: 100ex;
+        min-height: 3em;
+        max-height: 100em;
         overflow: scroll;
         font-family: monospace;
       }
@@ -31,6 +32,9 @@
         display: inline-block;
         width: 16ex;
         text-align: left;
+      }
+      input:invalid {
+        color:red;
       }
     </style>
   </head>
@@ -71,9 +75,11 @@
           </p>
           <p>
             <label for="targetPlatform">Target Platform: </label>
-            <select name="targetPlatform" id="targetPlatform">
-              <option value="ST-Nucleo-F103RB" selected>NUCLEO-F103RB</option>
-            </select>
+            <input type="text" list="platforms" name="targetPlatform" id="targetPlatform" value="ST-Nucleo-F103RB"/>
+            <datalist id="platforms">
+              <option value="ST-Nucleo-F103RB">STMicro NUCLEO-F103RB</option>
+              <option value="Seeed-Arch-Max">Seeed Arch Max</option>
+            </datalist>
           </p>
           <p>
             <button type="button" name="build" id="build" disabled>Build</button>
@@ -97,7 +103,11 @@
       </p>
       <p>
         <label for="vid">Vendor ID (hex):</label>
-        <input type="text" name="vid" id="vid" value="0x1209" maxlength="6" size="6"/>
+        <input list="vendor_ids" type="text" name="vid" id="vid" value="0x1209" maxlength="6" size="8" pattern="0x[A-Fa-f0-9]{1,4}"/>
+        <datalist id="vendor_ids">
+          <option value="0x1209">dapboot DFU bootloader</option>
+          <option value="0x0D28">mbed DAPLink</option>
+        </datalist>
       </p>
       <p>
         <span id="status"></span>
