@@ -172,6 +172,8 @@ var configurator;
         let saveButton = document.querySelector("#save");
         let progButton = document.querySelector("#buildAndProgram");
 
+        let manifestationTolerant = true;
+
         //let device;
 
         function logMbedMessage(msg) {
@@ -251,6 +253,10 @@ var configurator;
                             let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
                             dfuDisplay.textContent += "\n" + info;
                             transferSizeField.value = desc.TransferSize;
+                            if (desc.CanDnload) {
+                                manifestationTolerant = desc.ManifestationTolerant;
+                            }
+
                             if (device.settings.alternate.interfaceProtocol == 0x02) {
                                 if (!desc.CanDnload) {
                                     dnloadButton.disabled = true;
@@ -331,7 +337,7 @@ var configurator;
             if (device && firmwareFile != null) {
                 setLogContext(downloadLog);
                 clearLog(downloadLog);
-                device.do_download(transferSize, firmwareFile).then(
+                device.do_download(transferSize, firmwareFile, manifestationTolerant).then(
                     () => {
                         logInfo("Done!");
                         setLogContext(null);
@@ -442,9 +448,13 @@ var configurator;
 
                         // Try flashing the target
                         setLogContext(mbedLog);
-                        device.do_download(transferSize, firmwareFile).then(
+                        device.do_download(transferSize, firmwareFile, manifestationTolerant).then(
                             () => {
                                 logInfo("Done!");
+                                setLogContext(null);
+                            },
+                            error => {
+                                logError(error);
                                 setLogContext(null);
                             }
                         )

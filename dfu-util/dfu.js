@@ -23,6 +23,8 @@ var dfu = {};
     dfu.dfuUPLOAD_IDLE = 9;
     dfu.dfuERROR = 10;
 
+    dfu.STATUS_OK = 0x0;
+
     dfu.Device = function(device, settings) {
         this.device_ = device;
         this.settings = settings;
@@ -119,8 +121,12 @@ var dfu = {};
             });
     }
 
-    dfu.Device.prototype.close = function() {
-        return this.device_.close();
+    dfu.Device.prototype.close = async function() {
+        try {
+            await this.device_.close();
+        } catch (error) {
+            console.log(error);
+        }
     };
 
     dfu.Device.prototype.readDeviceDescriptor = function() {
@@ -302,6 +308,9 @@ var dfu = {};
                 } else {
                     return Promise.reject(result.status);
                 }
+            },
+            error => {
+                return Promise.reject("ControlTransferOut failed: " + error);
             }
         );
     };
@@ -320,6 +329,9 @@ var dfu = {};
                 } else {
                     return Promise.reject(result.status);
                 }
+            },
+            error => {
+                return Promise.reject("ControlTransferIn failed: " + error);
             }
         );
     };
@@ -346,21 +358,21 @@ var dfu = {};
 
     dfu.Device.prototype.getStatus = function() {
         return this.requestIn(dfu.GETSTATUS, 6).then(
-            data => {
-                return {
+            data =>
+                Promise.resolve({
                     "status": data.getUint8(0),
                     "pollTimeout": data.getUint32(1, true) & 0xFFFFFF,
                     "state": data.getUint8(4)
-                };
-            },
-            error => { throw "DFU GETSTATUS failed"; }
+                }),
+            error =>
+                Promise.reject("DFU GETSTATUS failed: " + error)
         );
     };
 
     dfu.Device.prototype.getState = function() {
         return this.requestIn(dfu.GETSTATE, 1).then(
-            data => data.getUint8(0),
-            error => { throw "DFU GETSTATE failed"; }
+            data => Promise.resolve(data.getUint8(0)),
+            error => Promise.reject("DFU GETSTATE failed: " + error)
         );
     };
 
@@ -399,95 +411,94 @@ var dfu = {};
         return device.upload(xfer_size, transaction).then(upload_success);
     };
 
-    dfu.Device.prototype.poll_until_idle = function(result, idleState) {
-        if (result.state == idleState || result.state == dfu.dfuERROR) {
-            return Promise.resolve(result);
-        } else {
-            let self = this;
-            let deferred = new Promise(function (resolve, reject) {
-                function poll_after_sleeping() {
-                    resolve(device.getStatus().then(
-                        result => self.poll_until_idle(result, idleState),
-                        error => { throw "Error during getStatus: " + error; })
-                    );
-                }
-                device.logDebug("Sleeping for " + result.pollTimeout + "ms");
-                setTimeout(poll_after_sleeping, result.pollTimeout);
+    dfu.Device.prototype.poll_until_idle = async function(idle_state) {
+        let dfu_status = await device.getStatus();
+
+        function async_sleep(duration_ms) {
+            return new Promise(function(resolve, reject) {
+                device.logDebug("Sleeping for " + duration_ms + "ms");
+                setTimeout(resolve, duration_ms);
             });
-            return deferred;
         }
+        
+        while (dfu_status.state != idle_state && dfu_status.state != dfu.dfuERROR) {
+            await async_sleep(dfu_status.pollTimeout);
+            dfu_status = await device.getStatus();
+        }
+
+        return dfu_status;
     };
 
-    dfu.Device.prototype.do_download = function(xfer_size, data) {
+    dfu.Device.prototype.do_download = async function(xfer_size, data, manifestationTolerant) {
         let bytes_sent = 0;
         let expected_size = data.byteLength;
         let transaction = 0;
 
         this.logInfo("Copying data from browser to DFU device");
 
-        let device = this;
-        function poll_until_download_idle(result) {
-            return device.poll_until_idle(result, dfu.dfuDNLOAD_IDLE);
-        }
+        // Initialize progress to 0
+        this.logProgress(bytes_sent, expected_size);
 
-        function poll_until_dfu_idle(result) {
-            return device.poll_until_idle(result, dfu.dfuIDLE);
-        }
+        while (bytes_sent < expected_size) {
+            const bytes_left = expected_size - bytes_sent;
+            const chunk_size = Math.min(bytes_left, xfer_size);
 
-        let downloadOperation = new Promise(function (resolve, reject) {
-            function download_success(bytes_written) {
-                bytes_sent += bytes_written;
-
-                // Update progress
-                device.logProgress(bytes_sent, expected_size);
-
-                device.logDebug("Wrote " + bytes_written + " bytes");
-                let bytes_left = expected_size - bytes_sent;
-                let chunk_size = Math.min(bytes_left, xfer_size);
-
-                device.getStatus().then(poll_until_download_idle).then(
-                    result => {
-                        if (result.status != 0x0) {
-                            throw "DFU DOWNLOAD failed state=${result.state}, status=${result.status}";
-                        }
-                        return Promise.resolve();
-                    }
-                ).then(
-                    () => {
-                        if (bytes_left > 0) {
-                            return device.download(data.slice(bytes_sent, bytes_sent+chunk_size), transaction++).then(download_success);
-                        } else {
-                            device.logDebug("Sending empty block");
-                            return device.download(new ArrayBuffer([]), transaction++).then(
-                                () => resolve(bytes_sent),
-                                error => reject(error)
-                            );
-                        }
-                    }
-                )
+            let bytes_written = 0;
+            let dfu_status;
+            try {
+                bytes_written = await this.download(data.slice(bytes_sent, bytes_sent+chunk_size), transaction++);
+                this.logDebug("Sent " + bytes_written + " bytes");
+                dfu_status = await this.poll_until_idle(dfu.dfuDNLOAD_IDLE);
+            } catch (error) {
+                throw "Error during DFU download: " + error;
             }
 
-            // Initialize progress to 0
-            device.logProgress(bytes_sent, expected_size);
-
-            device.download(data.slice(0, xfer_size), transaction++).then(download_success);
-        });
-
-        return downloadOperation.then(
-            bytes_written => {
-                device.logInfo("Wrote " + bytes_written + " bytes");
-                // Transition to MANIFEST_SYNC state
-                device.logInfo("Manifesting new firmware");
-                device.getStatus().then(poll_until_dfu_idle).then(
-                    result => {
-                        if (result.status != 0x0) {
-                            throw "DFU MANIFEST failed state=${result.state}, status=${result.status}";
-                        }
-                        return Promise.resolve();
-                    }
-                );
+            if (dfu_status.status != dfu.STATUS_OK) {
+                throw "DFU DOWNLOAD failed state=${dfu_status.state}, status=${dfu_status.status}";
             }
-        );
+
+            this.logDebug("Wrote " + bytes_written + " bytes");
+            bytes_sent += bytes_written;
+
+            this.logProgress(bytes_sent, expected_size);
+        }
+
+        this.logDebug("Sending empty block");
+        try {
+            await this.download(new ArrayBuffer([]), transaction++);
+        } catch (error) {
+            throw "Error during final DFU download: " + error;
+        }
+
+        this.logInfo("Wrote " + bytes_sent + " bytes");
+        this.logInfo("Manifesting new firmware");
+
+        if (manifestationTolerant) {
+            // Transition to MANIFEST_SYNC state
+            let dfu_status;
+            try {
+                dfu_status = await this.poll_until_idle(dfu.dfu_IDLE);
+            } catch (error) {
+                if (error.endswith("ControlTransferIn failed: NotFoundError: Device unavailable.")) {
+                    this.logWarning("Unable to poll final manifestation status");
+                } else {
+                    throw "Error during DFU manifest: " + error;
+                }
+            }
+
+            if (dfu_status.status != dfu.STATUS_OK) {
+                throw "DFU MANIFEST failed state=${dfu_status.state}, status=${dfu_status.status}";
+            }
+        } else {
+            // Reset to exit MANIFEST_WAIT_RESET
+            try {
+                this.device_.reset();
+            } catch (error) {
+                throw "Error during reset for manifestation: " + error;
+            }
+        }
+
+        return;
     };
     
 })();

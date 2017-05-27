@@ -1,5 +1,4 @@
 var device;
-var foo;
 (function() {
     'use strict';
 
@@ -160,6 +159,8 @@ var foo;
         let downloadLog = document.querySelector("#downloadLog");
         let uploadLog = document.querySelector("#uploadLog");
 
+        let manifestationTolerant = true;
+
         //let device;
 
         function onDisconnect(reason) {
@@ -221,6 +222,10 @@ var foo;
                             let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
                             dfuDisplay.textContent += "\n" + info;
                             transferSizeField.value = desc.TransferSize;
+                            if (desc.CanDnload) {
+                                manifestationTolerant = desc.ManifestationTolerant;
+                            }
+
                             if (device.settings.alternate.interfaceProtocol == 0x02) {
                                 if (!desc.CanUpload) {
                                     uploadButton.disabled = true;
@@ -336,9 +341,14 @@ var foo;
             if (device && firmwareFile != null) {
                 setLogContext(downloadLog);
                 clearLog(downloadLog);
-                device.do_download(transferSize, firmwareFile).then(
+                device.do_download(transferSize, firmwareFile, manifestationTolerant).then(
                     () => {
                         logInfo("Done!");
+                        setLogContext(null);
+                        onDisconnect();
+                    },
+                    error => {
+                        logError(error);
                         setLogContext(null);
                     }
                 )
