@@ -492,7 +492,7 @@ var dfu = {};
         } else {
             // Reset to exit MANIFEST_WAIT_RESET
             try {
-                this.device_.reset();
+                await this.device_.reset();
             } catch (error) {
                 throw "Error during reset for manifestation: " + error;
             }

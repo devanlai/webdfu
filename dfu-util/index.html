@@ -16,6 +16,9 @@
         color: red;
         font-weight: bold;
       }
+      label.radio {
+        display: inline;
+      }
       input:invalid {
         color:red;
       }
@@ -27,15 +30,22 @@
     </p>
     <p>
       <label for="vid">Vendor ID (hex):</label>
-      <input list="vendor_ids" type="text" name="vid" id="vid" value="0x1209" maxlength="6" size="8" pattern="0x[A-Fa-f0-9]{1,4}"/>
+      <input list="vendor_ids" type="text" name="vid" id="vid" maxlength="6" size="8" pattern="0x[A-Fa-f0-9]{1,4}"/>
       <datalist id="vendor_ids">
         <option value="0x1209">dapboot DFU bootloader</option>
         <option value="0x0D28">mbed DAPLink</option>
+        <option value="0x1EAF">LeafLabs Maple/stm32duino bootloader</option>
       </datalist>
     </p>
     <p>
       <button id="connect">Connect</button>
     </p>
+    <dialog id="interfaceDialog">
+      Your device has multiple DFU interfaces. Select one from the list below:
+      <form id="interfaceForm" method="dialog">
+        <button id="selectInterface" type="submit">Select interface</button>
+      </form>
+    </dialog>
     <p>
       <div id="usbInfo" style="white-space: pre"></div>
       <div id="dfuInfo" style="white-space: pre"></div>

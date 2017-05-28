@@ -14,7 +14,7 @@ var device;
         const vid = hex4(device.device_.vendorId);
         const pid = hex4(device.device_.productId);
         const name = device.device_.productName;
-        
+        // TODO: figure out why the interface names are null
         let mode = "Unknown"
         if (device.settings.alternate.interfaceProtocol == 0x01) {
             mode = "Runtime";
@@ -26,8 +26,37 @@ var device;
         const intf = device.settings["interface"].interfaceNumber;
         const alt = device.settings.alternate.alternateSetting;
         const serial = device.device_.serialNumber;
-        let info = `Found ${mode}: [${vid}:${pid}] cfg=${cfg}, intf=${intf}, alt=${alt}, name="${name}" serial="${serial}"`;
+        let info = `${mode}: [${vid}:${pid}] cfg=${cfg}, intf=${intf}, alt=${alt}, name="${name}" serial="${serial}"`;
         return info;
+    }
+
+    function populateInterfaceList(form, device_, interfaces) {
+        let old_choices = Array.from(form.getElementsByTagName("div"));
+        for (let radio_div of old_choices) {
+            form.removeChild(radio_div);
+        }
+
+        let button = form.getElementsByTagName("button")[0];
+
+        for (let i=0; i < interfaces.length; i++) {
+            let tempDevice = new dfu.Device(device_, interfaces[i]);
+            let radio = document.createElement("input");
+            radio.type = "radio";
+            radio.name = "interfaceIndex";
+            radio.value = i;
+            radio.id = "interface" + i;
+            radio.required = true;
+
+            let label = document.createElement("label");
+            label.textContent = formatDFUSummary(tempDevice);
+            label.className = "radio"
+            label.setAttribute("for", "interface" + i);
+
+            let div = document.createElement("div");
+            div.appendChild(radio);
+            div.appendChild(label);
+            form.insertBefore(div, button);
+        }
     }
 
     function getDFUDescriptorProperties(device) {
@@ -126,15 +155,6 @@ var device;
         }
     }
 
-    function getVidFromQueryString(queryString) {
-        let results = /[&?]vid=(0x[0-9a-fA-F]{1,4})/.exec(queryString);
-        if (results) {
-            return results[1];
-        } else {
-            return "";
-        }
-    }
-
     document.addEventListener('DOMContentLoaded', event => {
         let connectButton = document.querySelector("#connect");
         let detachButton = document.querySelector("#detach");
@@ -144,13 +164,40 @@ var device;
         let infoDisplay = document.querySelector("#usbInfo");
         let dfuDisplay = document.querySelector("#dfuInfo");
         let vidField = document.querySelector("#vid");
+        let interfaceDialog = document.querySelector("#interfaceDialog");
+        let interfaceForm = document.querySelector("#interfaceForm");
+        let interfaceSelectButton = document.querySelector("#selectInterface");
 
-        let vidFromUrl = getVidFromQueryString(window.location.search);
-        if (vidFromUrl) {
-            vidField.value = vidFromUrl;
+        let searchParams = new URLSearchParams(window.location.search);
+        let fromLandingPage = false;
+        let vid = 0;
+        // Set the vendor ID from the landing page URL
+        if (searchParams.has("vid")) {
+            const vidString = searchParams.get("vid");
+            try {
+                if (vidString.toLowerCase().startsWith("0x")) {
+                    vid = parseInt(vidString, 16);
+                } else {
+                    vid = parseInt(vidString, 10);
+                }
+                vidField.value = "0x" + hex4(vid).toUpperCase();
+                fromLandingPage = true;
+            } catch (error) {
+                console.log("Bad VID " + vidString + ":" + error);
+            }
         }
 
-        let vid = parseInt(vidField.value, 16);
+        // Grab the serial number from the landing page
+        let serial = "";
+        if (searchParams.has("serial")) {
+            serial = searchParams.get("serial");
+            // Workaround for Chromium issue 339054
+            if (window.location.search.endsWith("/") && serial.endsWith("/")) {
+                serial = serial.substring(0, serial.length-1);
+            }
+            fromLandingPage = true;
+        }
+
         let transferSizeField = document.querySelector("#transferSize");
         let transferSize = parseInt(transferSizeField.value);
         let firmwareFileField = document.querySelector("#firmwareFile");
@@ -242,16 +289,33 @@ var device;
             });
         }
 
-        function autoConnect() {
+        function autoConnect(vid, serial) {
             dfu.findAllDfuInterfaces().then(
-                devices => {
-                    if (devices.length == 0) {
+                dfu_devices => {
+                    let matching_devices = [];
+                    for (let dfu_device of dfu_devices) {
+                        if (serial) {
+                            if (dfu_device.device_.serialNumber == serial) {
+                                matching_devices.push(dfu_device);
+                            }
+                        } else if (dfu_device.device_.vendorId == vid) {
+                            matching_devices.push(dfu_device);
+                        }
+                    }
+
+                    if (matching_devices.length == 0) {
                         statusDisplay.textContent = 'No device found.';
                     } else {
-                        statusDisplay.textContent = 'Connecting...';
-                        device = devices[0];
-                        console.log(device);
-                        connect(device);
+                        if (matching_devices.length == 1) {
+                            statusDisplay.textContent = 'Connecting...';
+                            device = matching_devices[0];
+                            console.log(device);
+                            connect(device);
+                        } else {
+                            statusDisplay.textContent = "Multiple DFU interfaces found.";
+                        }
+                        vidField.value = "0x" + hex4(matching_devices[0].device_.vendorId).toUpperCase();
+                        vid = matching_devices[0].device_.vendorId;
                     }
                 }
             );
@@ -271,14 +335,36 @@ var device;
                 onDisconnect();
                 device = null;
             } else {
-                let filters = [
-                    { 'vendorId': vid }
-                ];
+                let filters = [];
+                if (serial) {
+                    filters.push({ 'serialNumber': serial });
+                } else if (vid) {
+                    filters.push({ 'vendorId': vid });
+                }
                 navigator.usb.requestDevice({ 'filters': filters }).then(
                     selectedDevice => {
                         let interfaces = dfu.findDeviceDfuInterfaces(selectedDevice);
-                        device = new dfu.Device(selectedDevice, interfaces[0]);
-                        connect(device);
+                        if (interfaces.length == 1) {
+                            device = new dfu.Device(selectedDevice, interfaces[0]);
+                            connect(device);
+                        } else {
+                            populateInterfaceList(interfaceForm, selectedDevice, interfaces);
+                            function connectToSelectedInterface() {
+                                interfaceForm.removeEventListener('submit', this);
+                                const index = interfaceForm.elements["interfaceIndex"].value;
+                                device = new dfu.Device(selectedDevice, interfaces[index]);
+                                connect(device);
+                            }
+
+                            interfaceForm.addEventListener('submit', connectToSelectedInterface);
+
+                            interfaceDialog.addEventListener('cancel', function () {
+                                interfaceDialog.removeEventListener('cancel', this);
+                                interfaceForm.removeEventListener('submit', connectToSelectedInterface);
+                            });
+
+                            interfaceDialog.showModal();
+                        }
                     }
                 ).catch(error => {
                     statusDisplay.textContent = error;
@@ -358,7 +444,9 @@ var device;
         // Check if WebUSB is available
         if (typeof navigator.usb !== 'undefined') {
             // Try connecting automatically
-            autoConnect();
+            if (fromLandingPage) {
+                autoConnect(vid, serial);
+            }
         } else {
             statusDisplay.textContent = 'WebUSB not available.'
             connectButton.disabled = true;
