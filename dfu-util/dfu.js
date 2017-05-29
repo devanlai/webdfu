@@ -143,6 +143,98 @@ var dfu = {};
         );
     };
 
+    dfu.Device.prototype.readStringDescriptor = async function(index, langID) {
+        if (typeof langID === 'undefined') {
+            langID = 0;
+        }
+
+        const GET_DESCRIPTOR = 0x06;
+        const DT_STRING = 0x03;
+        const wValue = (DT_STRING << 8) | index;
+
+        const request_setup = {
+            "requestType": "standard",
+            "recipient": "device",
+            "request": GET_DESCRIPTOR,
+            "value": wValue,
+            "index": langID
+        }
+
+        // Read enough for bLength
+        var result = await this.device_.controlTransferIn(request_setup, 1);
+
+        if (result.status == "ok") {
+            // Retrieve the full descriptor
+            const bLength = result.data.getUint8(0);
+            result = await this.device_.controlTransferIn(request_setup, bLength);
+            if (result.status == "ok") {
+                const len = (bLength-2) / 2;
+                let u16_words = [];
+                for (let i=0; i < len; i++) {
+                    u16_words.push(result.data.getUint16(2+i*2, true));
+                }
+                if (langID == 0) {
+                    // Return the langID array
+                    return u16_words;
+                } else {
+                    // Decode from UCS-2 into a string
+                    return String.fromCharCode.apply(String, u16_words);
+                }
+            }
+        }
+        
+        throw `Failed to read string descriptor ${index}: ${result.status}`;
+    };
+
+    dfu.Device.prototype.readInterfaceNames = async function() {
+        const DT_INTERFACE = 4;
+
+        let configs = {};
+        let allStringIndices = new Set();
+        for (let configIndex=0; configIndex < this.device_.configurations.length; configIndex++) {
+            const rawConfig = await this.readConfigurationDescriptor(configIndex);
+            let configDesc = dfu.parseConfigurationDescriptor(rawConfig);
+            let configValue = configDesc.bConfigurationValue;
+            configs[configValue] = {};
+
+            // Retrieve string indices for interface names
+            for (let desc of configDesc.descriptors) {
+                if (desc.bDescriptorType == DT_INTERFACE) {
+                    if (!(desc.bInterfaceNumber in configs[configValue])) {
+                        configs[configValue][desc.bInterfaceNumber] = {};
+                    }
+                    configs[configValue][desc.bInterfaceNumber][desc.bAlternateSetting] = desc.iInterface;
+                    if (desc.iInterface > 0) {
+                        allStringIndices.add(desc.iInterface);
+                    }
+                }
+            }
+        }
+
+        let strings = {};
+        // Retrieve interface name strings
+        for (let index of allStringIndices) {
+            try {
+                strings[index] = await this.readStringDescriptor(index, 0x0409);
+            } catch (error) {
+                console.log(error);
+                strings[index] = null;
+            }
+        }
+
+        console.log(configs);
+        for (let configValue in configs) {
+            for (let intfNumber in configs[configValue]) {
+                for (let alt in configs[configValue][intfNumber]) {
+                    const iIndex = configs[configValue][intfNumber][alt];
+                    configs[configValue][intfNumber][alt] = strings[iIndex];
+                }
+            }
+        }
+
+        return configs;
+    };
+
     dfu.parseDeviceDescriptor = function(data) {
         return {
             bLength:            data.getUint8(0),
@@ -230,7 +322,7 @@ var dfu = {};
             } else if (inDfuIntf && bDescriptorType == DT_DFU_FUNCTIONAL) {
                 let funcDesc = dfu.parseFunctionalDescriptor(descData)
                 descriptors.push(funcDesc);
-                currIntf.descriptors.push(funcDesc)
+                currIntf.descriptors.push(funcDesc);
             } else {
                 let desc = {
                     bLength: bLength,

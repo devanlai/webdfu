@@ -14,7 +14,7 @@ var device;
         const vid = hex4(device.device_.vendorId);
         const pid = hex4(device.device_.productId);
         const name = device.device_.productName;
-        // TODO: figure out why the interface names are null
+
         let mode = "Unknown"
         if (device.settings.alternate.interfaceProtocol == 0x01) {
             mode = "Runtime";
@@ -30,6 +30,24 @@ var device;
         return info;
     }
 
+    function formatDFUInterfaceAlternate(settings, name) {
+        let mode = "Unknown"
+        if (settings.alternate.interfaceProtocol == 0x01) {
+            mode = "Runtime";
+        } else if (settings.alternate.interfaceProtocol == 0x02) {
+            mode = "DFU";
+        }
+
+        const cfg = settings.configuration.configurationValue;
+        const intf = settings["interface"].interfaceNumber;
+        const alt = settings.alternate.alternateSetting;
+        if (!name) {
+            name = "UNKNOWN";
+        }
+
+        return `${mode}: cfg=${cfg}, intf=${intf}, alt=${alt}, name="${name}"`;
+    }
+
     async function populateInterfaceList(form, device_, interfaces) {
         let old_choices = Array.from(form.getElementsByTagName("div"));
         for (let radio_div of old_choices) {
@@ -38,8 +56,19 @@ var device;
 
         let button = form.getElementsByTagName("button")[0];
 
+        // Work around interface strings not being read correctly
+        let tempDevice = new dfu.Device(device_, interfaces[0]);
+        await tempDevice.device_.open();
+        let mapping = await tempDevice.readInterfaceNames();
+        await tempDevice.close();
+
         for (let i=0; i < interfaces.length; i++) {
-            let tempDevice = new dfu.Device(device_, interfaces[i]);
+            let settings = interfaces[i];
+            let configIndex = settings.configuration.configurationValue;
+            let intfNumber = settings["interface"].interfaceNumber;
+            let alt = settings.alternate.alternateSetting;
+            let intfName = mapping[configIndex][intfNumber][alt];
+
             let radio = document.createElement("input");
             radio.type = "radio";
             radio.name = "interfaceIndex";
@@ -48,7 +77,7 @@ var device;
             radio.required = true;
 
             let label = document.createElement("label");
-            label.textContent = formatDFUSummary(tempDevice);
+            label.textContent = formatDFUInterfaceAlternate(settings, intfName);
             label.className = "radio"
             label.setAttribute("for", "interface" + i);
 
