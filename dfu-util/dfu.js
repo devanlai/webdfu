@@ -538,7 +538,7 @@ var dfu = {};
             }
 
             if (dfu_status.status != dfu.STATUS_OK) {
-                throw "DFU DOWNLOAD failed state=${dfu_status.state}, status=${dfu_status.status}";
+                throw `DFU DOWNLOAD failed state=${dfu_status.state}, status=${dfu_status.status}`;
             }
 
             this.logDebug("Wrote " + bytes_written + " bytes");
@@ -571,14 +571,26 @@ var dfu = {};
             }
 
             if (dfu_status.status != dfu.STATUS_OK) {
-                throw "DFU MANIFEST failed state=${dfu_status.state}, status=${dfu_status.status}";
+                throw `DFU MANIFEST failed state=${dfu_status.state}, status=${dfu_status.status}`;
             }
         } else {
+            // Try polling once to initiate manifestation
+            try {
+                let final_status = await this.getStatus();
+                this.logDebug(`Final DFU status: state=${final_status.state}, status=${final_status.status}`);
+            } catch (error) {
+                this.logDebug("Manifest GET_STATUS poll error: " + error);
+            }
+
             // Reset to exit MANIFEST_WAIT_RESET
             try {
                 await this.device_.reset();
             } catch (error) {
-                throw "Error during reset for manifestation: " + error;
+                if (error != "NetworkError: Unable to reset the device.") {
+                    throw "Error during reset for manifestation: " + error;
+                } else {
+                    this.logDebug("Ignored reset error");
+                }
             }
         }
 
