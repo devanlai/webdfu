@@ -92,33 +92,25 @@ var dfu = {};
         }
     };
 
-    dfu.Device.prototype.open = function() {
-        return this.device_.open()
-            .then(() => {
-                const confValue = this.settings.configuration.configurationValue;
-                if (this.device_.configuration === null ||
-                    this.device_.configuration.configurationValue != confValue) {
-                    return this.device_.selectConfiguration(confValue);
-                }
-            })
-            .then(() => {
-                const intfNumber = this.settings["interface"].interfaceNumber;
-                if (!this.device_.configuration.interfaces[intfNumber].claimed) {
-                    return this.device_.claimInterface(intfNumber);
-                }
-                return Promise.resolve();
-            })
-            .then(() => {
-                const intfNumber = this.settings["interface"].interfaceNumber;
-                const altSetting = this.settings.alternate.alternateSetting;
-                let intf = this.device_.configuration.interfaces[intfNumber];
-                if (intf.alternate === null ||
-                    intf.alternate.alternateSetting != altSetting) {
-                    return this.device_.selectAlternateInterface(intfNumber, altSetting);
-                } else {
-                    return Promise.resolve();
-                }
-            });
+    dfu.Device.prototype.open = async function() {
+        await this.device_.open();
+        const confValue = this.settings.configuration.configurationValue;
+        if (this.device_.configuration === null ||
+            this.device_.configuration.configurationValue != confValue) {
+            await this.device_.selectConfiguration(confValue);
+        }
+
+        const intfNumber = this.settings["interface"].interfaceNumber;
+        if (!this.device_.configuration.interfaces[intfNumber].claimed) {
+            await this.device_.claimInterface(intfNumber);
+        }
+
+        const altSetting = this.settings.alternate.alternateSetting;
+        let intf = this.device_.configuration.interfaces[intfNumber];
+        if (intf.alternate === null ||
+            intf.alternate.alternateSetting != altSetting) {
+            await this.device_.selectAlternateInterface(intfNumber, altSetting);
+        }
     }
 
     dfu.Device.prototype.close = async function() {

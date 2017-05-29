@@ -30,7 +30,7 @@ var device;
         return info;
     }
 
-    function populateInterfaceList(form, device_, interfaces) {
+    async function populateInterfaceList(form, device_, interfaces) {
         let old_choices = Array.from(form.getElementsByTagName("div"));
         for (let radio_div of old_choices) {
             form.removeChild(radio_div);
@@ -224,69 +224,76 @@ var device;
             firmwareFileField.disabled = true;
         }
 
-        function connect(device) {
-            device.open().then(() => {
-                // Bind logging methods
-                device.logDebug = logDebug;
-                device.logInfo = logInfo;
-                device.logWarning = logWarning;
-                device.logError = logError;
-                device.logProgress = logProgress;
+        async function connect(device) {
+            try {
+                await device.open();
+            } catch (error) {
+                onDisconnect(error);
+                throw error;
+            }
 
-                // Display basic USB information
-                statusDisplay.textContent = '';
-                connectButton.textContent = 'Disconnect';
-                infoDisplay.textContent = (
-                    "MFG: " + device.device_.manufacturerName + "\n" +
+            // Bind logging methods
+            device.logDebug = logDebug;
+            device.logInfo = logInfo;
+            device.logWarning = logWarning;
+            device.logError = logError;
+            device.logProgress = logProgress;
+
+            // Display basic USB information
+            statusDisplay.textContent = '';
+            connectButton.textContent = 'Disconnect';
+            infoDisplay.textContent = (
+                "MFG: " + device.device_.manufacturerName + "\n" +
                     "Name: " + device.device_.productName + "\n" +
                     "Serial: " + device.device_.serialNumber + "\n" +
                     "Class: 0x" + device.device_.deviceClass.toString(16) + "\n" +
                     "Subclass: 0x" + device.device_.deviceSubclass.toString(16) + "\n" +
-                        "Protocol: 0x" + device.device_.deviceProtocol.toString(16) + "\n");
+                    "Protocol: 0x" + device.device_.deviceProtocol.toString(16) + "\n");
 
-                // Display basic dfu-util style info
-                dfuDisplay.textContent = formatDFUSummary(device);
+            // Display basic dfu-util style info
+            dfuDisplay.textContent = formatDFUSummary(device);
 
-                // Update buttons based on capabilities
-                if (device.settings.alternate.interfaceProtocol == 0x01) {
-                    // Runtime
-                    detachButton.disabled = false;
-                    uploadButton.disabled = true;
-                    downloadButton.disabled = true;
-                    firmwareFileField.disabled = true;
-                } else {
-                    // DFU
-                    detachButton.disabled = true;
-                    uploadButton.disabled = false;
-                    downloadButton.disabled = false;
-                    firmwareFileField.disabled = false;
+            // Update buttons based on capabilities
+            if (device.settings.alternate.interfaceProtocol == 0x01) {
+                // Runtime
+                detachButton.disabled = false;
+                uploadButton.disabled = true;
+                downloadButton.disabled = true;
+                firmwareFileField.disabled = true;
+            } else {
+                // DFU
+                detachButton.disabled = true;
+                uploadButton.disabled = false;
+                downloadButton.disabled = false;
+                firmwareFileField.disabled = false;
+            }
+
+            // Attempt to parse the DFU functional descriptor
+            let desc = {};
+            try {
+                desc = await getDFUDescriptorProperties(device);
+            } catch (error) {
+                onDisconnect(error);
+                throw error;
+            }
+
+            if (desc && Object.keys(desc).length > 0) {
+                let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
+                dfuDisplay.textContent += "\n" + info;
+                transferSizeField.value = desc.TransferSize;
+                if (desc.CanDnload) {
+                    manifestationTolerant = desc.ManifestationTolerant;
                 }
 
-                // Attempt to parse the DFU functional descriptor
-                getDFUDescriptorProperties(device).then(
-                    desc => {
-                        if (desc && Object.keys(desc).length > 0) {
-                            let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
-                            dfuDisplay.textContent += "\n" + info;
-                            transferSizeField.value = desc.TransferSize;
-                            if (desc.CanDnload) {
-                                manifestationTolerant = desc.ManifestationTolerant;
-                            }
-
-                            if (device.settings.alternate.interfaceProtocol == 0x02) {
-                                if (!desc.CanUpload) {
-                                    uploadButton.disabled = true;
-                                }
-                                if (!desc.CanDnload) {
-                                    dnloadButton.disabled = true;
-                                }
-                            }
-                        }
+                if (device.settings.alternate.interfaceProtocol == 0x02) {
+                    if (!desc.CanUpload) {
+                        uploadButton.disabled = true;
                     }
-                );
-            }, error => {
-                onDisconnect(error);
-            });
+                    if (!desc.CanDnload) {
+                        dnloadButton.disabled = true;
+                    }
+                }
+            }
         }
 
         function autoConnect(vid, serial) {
@@ -342,13 +349,13 @@ var device;
                     filters.push({ 'vendorId': vid });
                 }
                 navigator.usb.requestDevice({ 'filters': filters }).then(
-                    selectedDevice => {
+                    async selectedDevice => {
                         let interfaces = dfu.findDeviceDfuInterfaces(selectedDevice);
                         if (interfaces.length == 1) {
                             device = new dfu.Device(selectedDevice, interfaces[0]);
                             connect(device);
                         } else {
-                            populateInterfaceList(interfaceForm, selectedDevice, interfaces);
+                            await populateInterfaceList(interfaceForm, selectedDevice, interfaces);
                             function connectToSelectedInterface() {
                                 interfaceForm.removeEventListener('submit', this);
                                 const index = interfaceForm.elements["interfaceIndex"].value;
