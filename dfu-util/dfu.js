@@ -495,7 +495,7 @@ var dfu = {};
         return device.upload(xfer_size, transaction).then(upload_success);
     };
 
-    dfu.Device.prototype.poll_until_idle = async function(idle_state) {
+    dfu.Device.prototype.poll_until = async function(state_predicate) {
         let dfu_status = await device.getStatus();
 
         function async_sleep(duration_ms) {
@@ -505,12 +505,16 @@ var dfu = {};
             });
         }
         
-        while (dfu_status.state != idle_state && dfu_status.state != dfu.dfuERROR) {
+        while (!state_predicate(dfu_status.state) && dfu_status.state != dfu.dfuERROR) {
             await async_sleep(dfu_status.pollTimeout);
             dfu_status = await device.getStatus();
         }
 
         return dfu_status;
+    };
+
+    dfu.Device.prototype.poll_until_idle = function(idle_state) {
+        return this.poll_until(state => (state == idle_state));
     };
 
     dfu.Device.prototype.do_download = async function(xfer_size, data, manifestationTolerant) {

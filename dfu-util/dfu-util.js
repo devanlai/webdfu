@@ -10,6 +10,21 @@ var device;
         return s;
     }
 
+    function niceSize(n) {
+        const gigabyte = 1024 * 1024 * 1024;
+        const megabyte = 1024 * 1024;
+        const kilobyte = 1024;
+        if (n >= gigabyte) {
+            return n / gigabyte + "GiB";
+        } else if (n >= megabyte) {
+            return n / megabyte + "MiB";
+        } else if (n >= kilobyte) {
+            return n / kilobyte + "KiB";
+        } else {
+            return n + "B";
+        }
+    }
+
     function formatDFUSummary(device) {
         const vid = hex4(device.device_.vendorId);
         const pid = hex4(device.device_.productId);
@@ -178,7 +193,10 @@ var device;
 
     function logProgress(done, total) {
         if (logContext) {
-            let progressBar = logContext.querySelector("progress");
+            let progressBar;
+            if (logContext.lastChild.tagName.toLowerCase() == "progress") {
+                progressBar = logContext.lastChild;
+            }
             if (!progressBar) {
                 progressBar = document.createElement("progress");
                 logContext.appendChild(progressBar);
@@ -267,6 +285,45 @@ var device;
                 throw error;
             }
 
+            // Attempt to parse the DFU functional descriptor
+            let desc = {};
+            try {
+                desc = await getDFUDescriptorProperties(device);
+            } catch (error) {
+                onDisconnect(error);
+                throw error;
+            }
+
+            if (desc && Object.keys(desc).length > 0) {
+                device.properties = desc;
+                let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
+                dfuDisplay.textContent += "\n" + info;
+                transferSizeField.value = desc.TransferSize;
+                if (desc.CanDnload) {
+                    manifestationTolerant = desc.ManifestationTolerant;
+                }
+
+                if (device.settings.alternate.interfaceProtocol == 0x02) {
+                    if (!desc.CanUpload) {
+                        uploadButton.disabled = true;
+                    }
+                    if (!desc.CanDnload) {
+                        dnloadButton.disabled = true;
+                    }
+                }
+
+                if (desc.DFUVersion == 0x011a && device.settings.alternate.interfaceProtocol == 0x02) {
+                    device = new dfuse.Device(device.device_, device.settings);
+                    if (device.memoryInfo) {
+                        let totalSize = 0;
+                        for (let segment of device.memoryInfo.segments) {
+                            totalSize += segment.end - segment.start;
+                        }
+                        dfuDisplay.textContent += `\nSelected memory region: ${device.memoryInfo.name} (${niceSize(totalSize)})`;
+                    }
+                }
+            }
+            
             // Bind logging methods
             device.logDebug = logDebug;
             device.logInfo = logInfo;
@@ -278,12 +335,10 @@ var device;
             statusDisplay.textContent = '';
             connectButton.textContent = 'Disconnect';
             infoDisplay.textContent = (
+                "Name: " + device.device_.productName + "\n" +
                 "MFG: " + device.device_.manufacturerName + "\n" +
-                    "Name: " + device.device_.productName + "\n" +
-                    "Serial: " + device.device_.serialNumber + "\n" +
-                    "Class: 0x" + device.device_.deviceClass.toString(16) + "\n" +
-                    "Subclass: 0x" + device.device_.deviceSubclass.toString(16) + "\n" +
-                    "Protocol: 0x" + device.device_.deviceProtocol.toString(16) + "\n");
+                "Serial: " + device.device_.serialNumber + "\n"
+            );
 
             // Display basic dfu-util style info
             dfuDisplay.textContent = formatDFUSummary(device);
@@ -303,37 +358,12 @@ var device;
                 firmwareFileField.disabled = false;
             }
 
-            // Attempt to parse the DFU functional descriptor
-            let desc = {};
-            try {
-                desc = await getDFUDescriptorProperties(device);
-            } catch (error) {
-                onDisconnect(error);
-                throw error;
-            }
-
-            if (desc && Object.keys(desc).length > 0) {
-                let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
-                dfuDisplay.textContent += "\n" + info;
-                transferSizeField.value = desc.TransferSize;
-                if (desc.CanDnload) {
-                    manifestationTolerant = desc.ManifestationTolerant;
-                }
-
-                if (device.settings.alternate.interfaceProtocol == 0x02) {
-                    if (!desc.CanUpload) {
-                        uploadButton.disabled = true;
-                    }
-                    if (!desc.CanDnload) {
-                        dnloadButton.disabled = true;
-                    }
-                }
-            }
+            return device;
         }
 
         function autoConnect(vid, serial) {
             dfu.findAllDfuInterfaces().then(
-                dfu_devices => {
+                async dfu_devices => {
                     let matching_devices = [];
                     for (let dfu_device of dfu_devices) {
                         if (serial) {
@@ -352,7 +382,7 @@ var device;
                             statusDisplay.textContent = 'Connecting...';
                             device = matching_devices[0];
                             console.log(device);
-                            connect(device);
+                            device = await connect(device);
                         } else {
                             statusDisplay.textContent = "Multiple DFU interfaces found.";
                         }
@@ -389,16 +419,15 @@ var device;
                             console.log(selectedDevice);
                             statusDisplay.textContent = "The selected device does not have any USB DFU interfaces.";
                         } else if (interfaces.length == 1) {
-                            device = new dfu.Device(selectedDevice, interfaces[0]);
-                            connect(device);
+                            await fixInterfaceNames(selectedDevice, interfaces);
+                            device = await connect(new dfu.Device(selectedDevice, interfaces[0]));
                         } else {
                             await fixInterfaceNames(selectedDevice, interfaces);
                             populateInterfaceList(interfaceForm, selectedDevice, interfaces);
                             async function connectToSelectedInterface() {
                                 interfaceForm.removeEventListener('submit', this);
                                 const index = interfaceForm.elements["interfaceIndex"].value;
-                                device = new dfu.Device(selectedDevice, interfaces[index]);
-                                connect(device);
+                                device = await connect(new dfu.Device(selectedDevice, interfaces[index]));
                             }
 
                             interfaceForm.addEventListener('submit', connectToSelectedInterface);
