@@ -30,7 +30,7 @@ var device;
         return info;
     }
 
-    function formatDFUInterfaceAlternate(settings, name) {
+    function formatDFUInterfaceAlternate(settings) {
         let mode = "Unknown"
         if (settings.alternate.interfaceProtocol == 0x01) {
             mode = "Runtime";
@@ -41,14 +41,32 @@ var device;
         const cfg = settings.configuration.configurationValue;
         const intf = settings["interface"].interfaceNumber;
         const alt = settings.alternate.alternateSetting;
-        if (!name) {
-            name = "UNKNOWN";
-        }
+        const name = (settings.name) ? settings.name : "UNKNOWN";
 
         return `${mode}: cfg=${cfg}, intf=${intf}, alt=${alt}, name="${name}"`;
     }
 
-    async function populateInterfaceList(form, device_, interfaces) {
+    async function fixInterfaceNames(device_, interfaces) {
+        // Check if any interface names were not read correctly
+        if (interfaces.some(intf => (intf.name == null))) {
+            // Manually retrieve the interface name string descriptors
+            let tempDevice = new dfu.Device(device_, interfaces[0]);
+            await tempDevice.device_.open();
+            let mapping = await tempDevice.readInterfaceNames();
+            await tempDevice.close();
+
+            for (let intf of interfaces) {
+                if (intf.name === null) {
+                    let configIndex = intf.configuration.configurationValue;
+                    let intfNumber = intf["interface"].interfaceNumber;
+                    let alt = intf.alternate.alternateSetting;
+                    intf.name = mapping[configIndex][intfNumber][alt];
+                }
+            }
+        }
+    }
+
+    function populateInterfaceList(form, device_, interfaces) {
         let old_choices = Array.from(form.getElementsByTagName("div"));
         for (let radio_div of old_choices) {
             form.removeChild(radio_div);
@@ -56,19 +74,7 @@ var device;
 
         let button = form.getElementsByTagName("button")[0];
 
-        // Work around interface strings not being read correctly
-        let tempDevice = new dfu.Device(device_, interfaces[0]);
-        await tempDevice.device_.open();
-        let mapping = await tempDevice.readInterfaceNames();
-        await tempDevice.close();
-
         for (let i=0; i < interfaces.length; i++) {
-            let settings = interfaces[i];
-            let configIndex = settings.configuration.configurationValue;
-            let intfNumber = settings["interface"].interfaceNumber;
-            let alt = settings.alternate.alternateSetting;
-            let intfName = mapping[configIndex][intfNumber][alt];
-
             let radio = document.createElement("input");
             radio.type = "radio";
             radio.name = "interfaceIndex";
@@ -77,7 +83,7 @@ var device;
             radio.required = true;
 
             let label = document.createElement("label");
-            label.textContent = formatDFUInterfaceAlternate(settings, intfName);
+            label.textContent = formatDFUInterfaceAlternate(interfaces[i]);
             label.className = "radio"
             label.setAttribute("for", "interface" + i);
 
@@ -367,8 +373,7 @@ var device;
 
         connectButton.addEventListener('click', function() {
             if (device) {
-                device.close();
-                onDisconnect();
+                device.close().then(onDisconnect);
                 device = null;
             } else {
                 let filters = [];
@@ -380,12 +385,16 @@ var device;
                 navigator.usb.requestDevice({ 'filters': filters }).then(
                     async selectedDevice => {
                         let interfaces = dfu.findDeviceDfuInterfaces(selectedDevice);
-                        if (interfaces.length == 1) {
+                        if (interfaces.length == 0) {
+                            console.log(selectedDevice);
+                            statusDisplay.textContent = "The selected device does not have any USB DFU interfaces.";
+                        } else if (interfaces.length == 1) {
                             device = new dfu.Device(selectedDevice, interfaces[0]);
                             connect(device);
                         } else {
-                            await populateInterfaceList(interfaceForm, selectedDevice, interfaces);
-                            function connectToSelectedInterface() {
+                            await fixInterfaceNames(selectedDevice, interfaces);
+                            populateInterfaceList(interfaceForm, selectedDevice, interfaces);
+                            async function connectToSelectedInterface() {
                                 interfaceForm.removeEventListener('submit', this);
                                 const index = interfaceForm.elements["interfaceIndex"].value;
                                 device = new dfu.Device(selectedDevice, interfaces[index]);
@@ -411,15 +420,15 @@ var device;
         detachButton.addEventListener('click', function() {
             if (device) {
                 device.detach().then(
-                    len => {
-                        device.close();
+                    async len => {
+                        await device.close();
                         onDisconnect();
                         device = null;
                         // Wait a few seconds and try reconnecting
                         setTimeout(autoConnect, 5000);
                     },
-                    error => {
-                        device.close();
+                    async error => {
+                        await device.close();
                         onDisconnect(error);
                         device = null;
                     }
@@ -427,14 +436,15 @@ var device;
             }
         });
 
-        uploadButton.addEventListener('click', function() {
+        uploadButton.addEventListener('click', async function() {
             if (!device || !device.device_.opened) {
                 onDisconnect();
                 device = null;
             } else {
                 setLogContext(uploadLog);
                 clearLog(uploadLog);
-                device.do_upload(transferSize).then(
+                await device.clearStatus();
+                await device.do_upload(transferSize).then(
                     blob => {
                         saveAs(blob, "firmware.bin");
                         setLogContext(null);
@@ -459,11 +469,12 @@ var device;
             }
         });
 
-        downloadButton.addEventListener('click', function() {
+        downloadButton.addEventListener('click', async function() {
             if (device && firmwareFile != null) {
                 setLogContext(downloadLog);
                 clearLog(downloadLog);
-                device.do_download(transferSize, firmwareFile, manifestationTolerant).then(
+                await device.clearStatus();
+                await device.do_download(transferSize, firmwareFile, manifestationTolerant).then(
                     () => {
                         logInfo("Done!");
                         setLogContext(null);

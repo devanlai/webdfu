@@ -42,7 +42,8 @@ var dfu = {};
                         let settings = {
                             "configuration": conf,
                             "interface": intf,
-                            "alternate": alt
+                            "alternate": alt,
+                            "name": alt.interfaceName
                         };
                         interfaces.push(settings);
                     }
@@ -222,7 +223,6 @@ var dfu = {};
             }
         }
 
-        console.log(configs);
         for (let configValue in configs) {
             for (let intfNumber in configs[configValue]) {
                 for (let alt in configs[configValue][intfNumber]) {
