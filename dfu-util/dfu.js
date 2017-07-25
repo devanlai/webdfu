@@ -496,8 +496,9 @@ var dfu = {};
     };
 
     dfu.Device.prototype.poll_until = async function(state_predicate) {
-        let dfu_status = await device.getStatus();
+        let dfu_status = await this.getStatus();
 
+        let device = this;
         function async_sleep(duration_ms) {
             return new Promise(function(resolve, reject) {
                 device.logDebug("Sleeping for " + duration_ms + "ms");
@@ -507,7 +508,7 @@ var dfu = {};
         
         while (!state_predicate(dfu_status.state) && dfu_status.state != dfu.dfuERROR) {
             await async_sleep(dfu_status.pollTimeout);
-            dfu_status = await device.getStatus();
+            dfu_status = await this.getStatus();
         }
 
         return dfu_status;
@@ -567,7 +568,7 @@ var dfu = {};
             try {
                 dfu_status = await this.poll_until_idle(dfu.dfu_IDLE);
             } catch (error) {
-                if (error.endswith("ControlTransferIn failed: NotFoundError: Device unavailable.")) {
+                if (error.endsWith("ControlTransferIn failed: NotFoundError: Device unavailable.")) {
                     this.logWarning("Unable to poll final manifestation status");
                 } else {
                     throw "Error during DFU manifest: " + error;
