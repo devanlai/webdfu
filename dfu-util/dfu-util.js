@@ -1,4 +1,4 @@
-var device;
+var device = null;
 (function() {
     'use strict';
 
@@ -277,6 +277,16 @@ var device;
             firmwareFileField.disabled = true;
         }
 
+        function onUnexpectedDisconnect(event) {
+            if (device !== null && device.device_ !== null) {
+                if (device.device_ === event.device) {
+                    device.disconnected = true;
+                    onDisconnect("Device disconnected");
+                    device = null;
+                }
+            }
+        }
+
         async function connect(device) {
             try {
                 await device.open();
@@ -450,11 +460,21 @@ var device;
             if (device) {
                 device.detach().then(
                     async len => {
-                        await device.close();
+                        let detached = false;
+                        try {
+                            await device.close();
+                            await device.waitDisconnected(5000);
+                            detached = true;
+                        } catch (err) {
+                            console.log("Detach failed: " + err);
+                        }
+
                         onDisconnect();
                         device = null;
-                        // Wait a few seconds and try reconnecting
-                        setTimeout(autoConnect, 5000);
+                        if (detached) {
+                            // Wait a few seconds and try reconnecting
+                            setTimeout(autoConnect, 5000);
+                        }
                     },
                     async error => {
                         await device.close();
@@ -521,7 +541,18 @@ var device;
                     () => {
                         logInfo("Done!");
                         setLogContext(null);
-                        onDisconnect();
+                        if (!manifestationTolerant) {
+                            device.waitDisconnected(5000).then(
+                                dev => {
+                                    onDisconnect();
+                                    device = null;
+                                },
+                                error => {
+                                    // It didn't reset and disconnect for some reason...
+                                    console.log("Device unexpectedly tolerated manifestation.");
+                                }
+                            );
+                        }
                     },
                     error => {
                         logError(error);
@@ -533,6 +564,7 @@ var device;
 
         // Check if WebUSB is available
         if (typeof navigator.usb !== 'undefined') {
+            navigator.usb.addEventListener("disconnect", onUnexpectedDisconnect);
             // Try connecting automatically
             if (fromLandingPage) {
                 autoConnect(vid, serial);
