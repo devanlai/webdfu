@@ -27,9 +27,7 @@ The javascript DFU driver is ported from the excellent open-source software, [df
 The current WebUSB draft no longer requires the device to support additional WebUSB descriptors.
 However, implementing WebUSB descriptors allows the device to specify a landing page URL for the browser to present to the user when the device is plugged in.
 
-An example WebUSB-enabled USB DFU bootloader for the STM32F103 can be found here:
-
-https://github.com/devanlai/dapboot
+For an example WebUSB-enabled USB DFU bootloader for the STM32F103 series, check out the [dapboot](https://github.com/devanlai/dapboot) project
 
 For [mbed DAPLink](https://developer.mbed.org/handbook/DAPLink) firmware with WebUSB + DFU added, see this fork:
 
@@ -40,9 +38,11 @@ https://github.com/devanlai/DAPLink/tree/nucleo_webusb
 * Reading the current device firmware (DFU upload)
 * Writing new firmware to a device (DFU download)
 * Switching from the runtime configuration to the DFU bootloader (DFU detach)
+* ST DfuSe download
 
 ## Planned future features:  
-* ST DfuSe protocol compatibility
+* ST DfuSe upload
+* DfuSe file format support
 * DFU file suffix support
 * Better support for remembering previous DFU configurations and pairing the bootloader/runtime versions of the same device.
 
