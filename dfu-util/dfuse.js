@@ -12,6 +12,7 @@ var dfuse = {};
     dfuse.Device = function(device, settings) {
         dfu.Device.call(this, device, settings);
         this.memoryInfo = null;
+        this.startAddress = NaN;
         if (settings.name) {
             this.memoryInfo = dfuse.parseMemoryDescriptor(settings.name);
         }
@@ -38,7 +39,7 @@ var dfuse = {};
             'M': 1048576
         };
 
-        let contiguousSegmentRegex = /\/\s*(0x[0-9a-fA-F]{1,8})\s*\/(\s*[0-9]+\s*\*\s*[0-9]+\s?[ BKM]\s*[abcdefg]\s*,?\s*)/g;
+        let contiguousSegmentRegex = /\/\s*(0x[0-9a-fA-F]{1,8})\s*\/(\s*[0-9]+\s*\*\s*[0-9]+\s?[ BKM]\s*[abcdefg]\s*,?\s*)+/g;
         let contiguousSegmentMatch;
         while (contiguousSegmentMatch = contiguousSegmentRegex.exec(segmentString)) {
             let segmentRegex = /([0-9]+)\s*\*\s*([0-9]+)\s?([ BKM])\s*([abcdefg])\s*,?\s*/g;
@@ -139,6 +140,20 @@ var dfuse = {};
         return segment.start + (sectorIndex + 1) * segment.sectorSize;
     };
 
+    dfuse.Device.prototype.getFirstWritableSegment = function() {
+        if (!this.memoryInfo || ! this.memoryInfo.segments) {
+            throw "No memory map information available";
+        }
+
+        for (let segment of this.memoryInfo.segments) {
+            if (segment.writable) {
+                return segment;
+            }
+        }
+
+        return null;
+    };
+
     dfuse.Device.prototype.erase = async function(startAddr, length) {
         let segment = this.getSegment(startAddr);
         let addr = this.getSectorStart(startAddr, segment);
@@ -156,7 +171,7 @@ var dfuse = {};
             }
             if (!segment.erasable) {
                 // Skip over the non-erasable section
-                bytesErased = min(bytesErased + segment.end - addr, bytesToErase);
+                bytesErased = Math.min(bytesErased + segment.end - addr, bytesToErase);
                 addr = segment.end;
                 this.logProgress(bytesErased, bytesToErase);
                 continue;
@@ -180,8 +195,14 @@ var dfuse = {};
         
         let bytes_sent = 0;
         let expected_size = data.byteLength;
-        // TODO: allow the user to specify the start address
-        const startAddress = this.memoryInfo.segments[0].start;
+
+        let startAddress = this.startAddress;
+        if (isNaN(startAddress)) {
+            startAddress = this.memoryInfo.segments[0].start;
+            this.logWarning("Using inferred start address 0x" + startAddress.toString(16));
+        } else if (this.getSegment(startAddress) === null) {
+            this.logError(`Start address 0x${startAddress.toString(16)} outside of memory map bounds`);
+        }
         await this.erase(startAddress, expected_size);
 
         this.logInfo("Copying data from browser to DFU device");
@@ -231,8 +252,14 @@ var dfuse = {};
     }
 
     dfuse.Device.prototype.do_upload = async function(xfer_size) {
+        let startAddress = this.startAddress;
+        if (isNaN(startAddress)) {
+            startAddress = this.memoryInfo.segments[0].start;
+            this.logWarning("Using inferred start address 0x" + startAddress.toString(16));
+        } else if (this.getSegment(startAddress) === null) {
+            this.logWarning(`Start address 0x${startAddress.toString(16)} outside of memory map bounds`);
+        }
         await this.dfuseCommand(dfuse.SET_ADDRESS, startAddress, 4);
-        const startAddress = this.memoryInfo.segments[0].start;
-        return await blah(xfer_size);
+        throw "DfuSe upload not implemented";
     }
 })();

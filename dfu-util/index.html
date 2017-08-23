@@ -56,26 +56,33 @@
       <button id="detach" disabled="true">Detach DFU</button>
     </fieldset>
     <fieldset>
-      <label for="transferSize">Transfer Size:</label>
-      <input type="number" name="transferSize" id="transferSize" value="1024"/>
-      <legend>DFU mode</legend>
-      <fieldset>
-        <legend>Firmware Download (write to USB device)</legend>
-        <p>
-          <input type="file" id="firmwareFile" name="file" disabled="true"/>
-        </p>
-        <p>
-          <button id="download" disabled="true">Download</button>
-        </p>
-        <div class="log" id="downloadLog"></div>
-      </fieldset>
-      <fieldset>
-        <legend>Firmware Upload (read from USB device)</legend>
-        <p>
-          <button id="upload" disabled="true">Upload</button>
-        </p>
-        <div class="log" id="uploadLog"></div>
-      </fieldset>
+      <form id="configForm">
+        <label for="transferSize">Transfer Size:</label>
+        <input type="number" name="transferSize" id="transferSize" value="1024"/>
+        <div id="dfuseFields" hidden="true">
+          <label for="dfuseStartAddress">DfuSe Start Address:</label>
+          <input type="text" name="dfuseStartAddress" id="dfuseStartAddress" title="Initial memory address to read/write from (hex)" size="10" pattern="0x[A-Fa-f0-9]+"/>
+        </div>
+      
+        <legend>DFU mode</legend>
+        <fieldset>
+          <legend>Firmware Download (write to USB device)</legend>
+          <p>
+            <input type="file" id="firmwareFile" name="file" disabled="true"/>
+          </p>
+          <p>
+            <button id="download" disabled="true">Download</button>
+          </p>
+          <div class="log" id="downloadLog"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Firmware Upload (read from USB device)</legend>
+          <p>
+            <button id="upload" disabled="true">Upload</button>
+          </p>
+          <div class="log" id="uploadLog"></div>
+        </fieldset>
+      </form>
     </fieldset>
     <h1>About</h1>
     <p>

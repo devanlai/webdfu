@@ -10,6 +10,14 @@ var device = null;
         return s;
     }
 
+    function hexAddr8(n) {
+        let s = n.toString(16)
+        while (s.length < 8) {
+            s = '0' + s;
+        }
+        return "0x" + s;
+    }
+
     function niceSize(n) {
         const gigabyte = 1024 * 1024 * 1024;
         const megabyte = 1024 * 1024;
@@ -251,8 +259,13 @@ var device = null;
             fromLandingPage = true;
         }
 
+        let configForm = document.querySelector("#configForm");
+
         let transferSizeField = document.querySelector("#transferSize");
         let transferSize = parseInt(transferSizeField.value);
+
+        let dfuseStartAddressField = document.querySelector("#dfuseStartAddress");
+
         let firmwareFileField = document.querySelector("#firmwareFile");
         let firmwareFile = null;
 
@@ -304,6 +317,7 @@ var device = null;
                 throw error;
             }
 
+            let memorySummary = "";
             if (desc && Object.keys(desc).length > 0) {
                 device.properties = desc;
                 let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
@@ -329,7 +343,25 @@ var device = null;
                         for (let segment of device.memoryInfo.segments) {
                             totalSize += segment.end - segment.start;
                         }
-                        dfuDisplay.textContent += `\nSelected memory region: ${device.memoryInfo.name} (${niceSize(totalSize)})`;
+                        memorySummary = `Selected memory region: ${device.memoryInfo.name} (${niceSize(totalSize)})`;
+                        for (let segment of device.memoryInfo.segments) {
+                            let properties = [];
+                            if (segment.readable) {
+                                properties.push("readable");
+                            }
+                            if (segment.erasable) {
+                                properties.push("erasable");
+                            }
+                            if (segment.writable) {
+                                properties.push("writable");
+                            }
+                            let propertySummary = properties.join(", ");
+                            if (!propertySummary) {
+                                propertySummary = "inaccessible";
+                            }
+
+                            memorySummary += `\n${hexAddr8(segment.start)}-${hexAddr8(segment.end-1)} (${propertySummary})`;
+                        }
                     }
                 }
             }
@@ -341,6 +373,10 @@ var device = null;
             device.logError = logError;
             device.logProgress = logProgress;
 
+            // Clear logs
+            clearLog(uploadLog);
+            clearLog(downloadLog);
+
             // Display basic USB information
             statusDisplay.textContent = '';
             connectButton.textContent = 'Disconnect';
@@ -351,7 +387,7 @@ var device = null;
             );
 
             // Display basic dfu-util style info
-            dfuDisplay.textContent = formatDFUSummary(device);
+            dfuDisplay.textContent = formatDFUSummary(device) + "\n" + memorySummary;
 
             // Update buttons based on capabilities
             if (device.settings.alternate.interfaceProtocol == 0x01) {
@@ -366,6 +402,21 @@ var device = null;
                 uploadButton.disabled = false;
                 downloadButton.disabled = false;
                 firmwareFileField.disabled = false;
+            }
+
+            if (device.memoryInfo) {
+                let dfuseFieldsDiv = document.querySelector("#dfuseFields")
+                dfuseFieldsDiv.hidden = false;
+                dfuseStartAddressField.disabled = false;
+                let segment = device.getFirstWritableSegment();
+                if (segment) {
+                    device.startAddress = segment.start;
+                    dfuseStartAddressField.value = "0x" + segment.start.toString(16);
+                }
+            } else {
+                let dfuseFieldsDiv = document.querySelector("#dfuseFields")
+                dfuseFieldsDiv.hidden = true;
+                dfuseStartAddressField.disabled = true;
             }
 
             return device;
@@ -409,6 +460,23 @@ var device = null;
 
         transferSizeField.addEventListener("change", function() {
             transferSize = parseInt(transferSizeField.value);
+        });
+
+        dfuseStartAddressField.addEventListener("change", function(event) {
+            const field = event.target;
+            let address = parseInt(field.value, 16);
+            if (isNaN(address)) {
+                field.setCustomValidity("Invalid hexadecimal start address");
+            } else if (device && device.memoryInfo) {
+                 if (device.getSegment(address) !== null) {
+                    device.startAddress = address;
+                    field.setCustomValidity("");
+                } else {
+                    field.setCustomValidity("Address outside of memory map");
+                }
+            } else {
+                field.setCustomValidity("");
+            }
         });
 
         connectButton.addEventListener('click', function() {
@@ -485,7 +553,13 @@ var device = null;
             }
         });
 
-        uploadButton.addEventListener('click', async function() {
+        uploadButton.addEventListener('click', async function(event) {
+            event.preventDefault();
+            if (!configForm.checkValidity()) {
+                configForm.reportValidity();
+                return false;
+            }
+
             if (!device || !device.device_.opened) {
                 onDisconnect();
                 device = null;
@@ -525,7 +599,13 @@ var device = null;
             }
         });
 
-        downloadButton.addEventListener('click', async function() {
+        downloadButton.addEventListener('click', async function(event) {
+            event.preventDefault();
+            if (!configForm.checkValidity()) {
+                configForm.reportValidity();
+                return false;
+            }
+            
             if (device && firmwareFile != null) {
                 setLogContext(downloadLog);
                 clearLog(downloadLog);
