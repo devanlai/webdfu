@@ -555,6 +555,7 @@ var device = null;
 
         uploadButton.addEventListener('click', async function(event) {
             event.preventDefault();
+            event.stopPropagation();
             if (!configForm.checkValidity()) {
                 configForm.reportValidity();
                 return false;
@@ -585,6 +586,8 @@ var device = null;
                     }
                 );
             }
+
+            return false;
         });
 
         firmwareFileField.addEventListener("change", function() {
@@ -601,6 +604,7 @@ var device = null;
 
         downloadButton.addEventListener('click', async function(event) {
             event.preventDefault();
+            event.stopPropagation();
             if (!configForm.checkValidity()) {
                 configForm.reportValidity();
                 return false;
@@ -640,6 +644,8 @@ var device = null;
                     }
                 )
             }
+
+            //return false;
         });
 
         // Check if WebUSB is available
