@@ -53,8 +53,6 @@ To test changes locally, you can run a simple HTTPS server. A pre-generated cert
 
 Note: Don't re-use this certificate outside of your development environment!
 
-When running locally, the [origin trial token](https://github.com/jpchase/OriginTrials/blob/gh-pages/explainer.md) that enables WebUSB for this domain does not apply, so you must ensure that WebUSB is enabled by visiting chrome://flags and ensuring that the #enable-webusb and #enable-experimental-web-platform-features flags are enabled.
-
 For additional tips and information about WebUSB, see this article:
 
 https://developers.google.com/web/updates/2016/03/access-usb-devices-on-the-web#tips
