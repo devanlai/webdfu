@@ -16,7 +16,7 @@
 }(this, function($) {
     'use strict';
 
-    var defaultApi = "https://developer.mbed.org/api/v2/tasks/compiler/";
+    var defaultApi = "https://os.mbed.com/api/v2/tasks/compiler/";
 
     // Constructor
     var mbedCompileApi = function(logFn, api) {
