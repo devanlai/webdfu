@@ -157,7 +157,7 @@ var dfuse = {};
     dfuse.Device.prototype.erase = async function(startAddr, length) {
         let segment = this.getSegment(startAddr);
         let addr = this.getSectorStart(startAddr, segment);
-        const endAddr = this.getSectorEnd(startAddr + length);
+        const endAddr = this.getSectorEnd(startAddr + length - 1);
 
         let bytesErased = 0;
         const bytesToErase = endAddr - addr;
