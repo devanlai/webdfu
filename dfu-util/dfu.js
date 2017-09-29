@@ -495,35 +495,51 @@ var dfu = {};
         return this.requestOut(dfu.ABORT);
     };
 
-    dfu.Device.prototype.do_upload = function(xfer_size) {
-        let transaction = 0;
+    dfu.Device.prototype.abortToIdle = async function() {
+        await this.abort();
+        let state = await this.getState();
+        if (state == dfu.dfuERROR) {
+            await this.clearStatus();
+            state = await this.getState();
+        }
+        if (state != dfu.dfuIDLE) {
+            throw "Failed to return to idle state after abort: state " + state.state;
+        }
+    };
+
+    dfu.Device.prototype.do_upload = async function(xfer_size, max_size=Infinity, first_block=0) {
+        let transaction = first_block;
         let blocks = [];
         let bytes_read = 0;
 
         this.logInfo("Copying data from DFU device to browser");
+        // Initialize progress to 0
+        this.logProgress(0);
 
-        let device = this;
-        function upload_success(result) {
+        let result;
+        let bytes_to_read;
+        do {
+            bytes_to_read = Math.min(xfer_size, max_size - bytes_read);
+            result = await this.upload(bytes_to_read, transaction++);
+            this.logDebug("Read " + result.byteLength + " bytes");
             if (result.byteLength > 0) {
                 blocks.push(result);
                 bytes_read += result.byteLength;
             }
-
-            if (result.byteLength == xfer_size) {
-                // Update progress
-                device.logProgress(bytes_read);
-                return device.upload(xfer_size, transaction++).then(upload_success);
+            if (Number.isFinite(max_size)) {
+                this.logProgress(bytes_read, max_size);
             } else {
-                // Update progress
-                device.logProgress(bytes_read, bytes_read);
-                return Promise.resolve(new Blob(blocks, { type: "application/octet-stream" }));
+                this.logProgress(bytes_read);
             }
+        } while ((bytes_read < max_size) && (result.byteLength == bytes_to_read));
+
+        if (bytes_read == max_size) {
+            await this.abortToIdle();
         }
 
-        // Initialize progress to 0
-        device.logProgress(0);
+        this.logInfo(`Read ${bytes_read} bytes`);
 
-        return device.upload(xfer_size, transaction).then(upload_success);
+        return new Blob(blocks, { type: "application/octet-stream" });
     };
 
     dfu.Device.prototype.poll_until = async function(state_predicate) {

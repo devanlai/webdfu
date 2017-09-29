@@ -61,6 +61,8 @@
         <div id="dfuseFields" hidden="true">
           <label for="dfuseStartAddress">DfuSe Start Address:</label>
           <input type="text" name="dfuseStartAddress" id="dfuseStartAddress" title="Initial memory address to read/write from (hex)" size="10" pattern="0x[A-Fa-f0-9]+"/>
+          <label for="dfuseUploadSize">DfuSe Upload Size:</label>
+          <input type="number" name="dfuseUploadSize" id="dfuseUploadSize" min="1"/>
         </div>
       
         <legend>DFU mode</legend>
@@ -96,7 +98,7 @@
       <li>
         <p>A USB DFU class device</p>
         <p>For a WebUSB friendly USB DFU bootloader that can be flashed onto <a href="http://wiki.stm32duino.com/index.php?title=Blue_Pill">inexpensive STM32F103 boards</a>, check out the <a href="https://github.com/devanlai/dapboot">dapboot</a> project.</p>
-        <p>Some recent STM32 parts have on-chip USB DfuSe bootloaders that are experimentally supported by this site.</p>
+        <p>Some recent STM32 parts have on-chip USB DfuSe bootloaders that are supported by this site.</p>
       </li>
     <ul>
   </body>

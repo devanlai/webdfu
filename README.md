@@ -39,9 +39,9 @@ https://github.com/devanlai/DAPLink/tree/nucleo_webusb
 * Writing new firmware to a device (DFU download)
 * Switching from the runtime configuration to the DFU bootloader (DFU detach)
 * ST DfuSe download
-
-## Planned future features:  
 * ST DfuSe upload
+
+## Planned future features:
 * DfuSe file format support
 * DFU file suffix support
 * Better support for remembering previous DFU configurations and pairing the bootloader/runtime versions of the same device.

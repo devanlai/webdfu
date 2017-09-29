@@ -154,6 +154,33 @@ var dfuse = {};
         return null;
     };
 
+    dfuse.Device.prototype.getMaxReadSize = function(startAddr) {
+        if (!this.memoryInfo || ! this.memoryInfo.segments) {
+            throw "No memory map information available";
+        }
+
+        let numBytes = 0;
+        for (let segment of this.memoryInfo.segments) {
+            if (segment.start <= startAddr && startAddr < segment.end) {
+                // Found the first segment the read starts in
+                if (segment.readable) {
+                    numBytes += segment.end - startAddr;
+                } else {
+                    return 0;
+                }
+            } else if (segment.start == startAddr + numBytes) {
+                // Include a contiguous segment
+                if (segment.readable) {
+                    numBytes += (segment.end - segment.start);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        return numBytes;
+    };
+
     dfuse.Device.prototype.erase = async function(startAddr, length) {
         let segment = this.getSegment(startAddr);
         let addr = this.getSectorStart(startAddr, segment);
@@ -251,7 +278,7 @@ var dfuse = {};
         }
     }
 
-    dfuse.Device.prototype.do_upload = async function(xfer_size) {
+    dfuse.Device.prototype.do_upload = async function(xfer_size, max_size) {
         let startAddress = this.startAddress;
         if (isNaN(startAddress)) {
             startAddress = this.memoryInfo.segments[0].start;
@@ -259,7 +286,17 @@ var dfuse = {};
         } else if (this.getSegment(startAddress) === null) {
             this.logWarning(`Start address 0x${startAddress.toString(16)} outside of memory map bounds`);
         }
+
+        this.logInfo(`Reading up to 0x${max_size.toString(16)} bytes starting at 0x${startAddress.toString(16)}`);
+        let state = await this.getState();
+        if (state != dfu.dfuIDLE) {
+            await this.abortToIdle();
+        }
         await this.dfuseCommand(dfuse.SET_ADDRESS, startAddress, 4);
-        throw "DfuSe upload not implemented";
+        await this.abortToIdle();
+
+        // DfuSe encodes the read address based on the transfer size,
+        // the block number - 2, and the SET_ADDRESS pointer.
+        return await dfu.Device.prototype.do_upload.call(this, xfer_size, max_size, 2);
     }
 })();

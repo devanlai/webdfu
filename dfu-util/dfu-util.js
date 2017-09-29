@@ -265,6 +265,7 @@ var device = null;
         let transferSize = parseInt(transferSizeField.value);
 
         let dfuseStartAddressField = document.querySelector("#dfuseStartAddress");
+        let dfuseUploadSizeField = document.querySelector("#dfuseUploadSize");
 
         let firmwareFileField = document.querySelector("#firmwareFile");
         let firmwareFile = null;
@@ -323,6 +324,7 @@ var device = null;
                 let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
                 dfuDisplay.textContent += "\n" + info;
                 transferSizeField.value = desc.TransferSize;
+                transferSize = desc.TransferSize;
                 if (desc.CanDnload) {
                     manifestationTolerant = desc.ManifestationTolerant;
                 }
@@ -330,6 +332,7 @@ var device = null;
                 if (device.settings.alternate.interfaceProtocol == 0x02) {
                     if (!desc.CanUpload) {
                         uploadButton.disabled = true;
+                        dfuseUploadSizeField.disabled = true;
                     }
                     if (!desc.CanDnload) {
                         dnloadButton.disabled = true;
@@ -408,15 +411,20 @@ var device = null;
                 let dfuseFieldsDiv = document.querySelector("#dfuseFields")
                 dfuseFieldsDiv.hidden = false;
                 dfuseStartAddressField.disabled = false;
+                dfuseUploadSizeField.disabled = false;
                 let segment = device.getFirstWritableSegment();
                 if (segment) {
                     device.startAddress = segment.start;
                     dfuseStartAddressField.value = "0x" + segment.start.toString(16);
+                    const maxReadSize = device.getMaxReadSize(segment.start);
+                    dfuseUploadSizeField.value = maxReadSize;
+                    dfuseUploadSizeField.max = maxReadSize;
                 }
             } else {
                 let dfuseFieldsDiv = document.querySelector("#dfuseFields")
                 dfuseFieldsDiv.hidden = true;
                 dfuseStartAddressField.disabled = true;
+                dfuseUploadSizeField.disabled = true;
             }
 
             return device;
@@ -468,9 +476,10 @@ var device = null;
             if (isNaN(address)) {
                 field.setCustomValidity("Invalid hexadecimal start address");
             } else if (device && device.memoryInfo) {
-                 if (device.getSegment(address) !== null) {
+                if (device.getSegment(address) !== null) {
                     device.startAddress = address;
                     field.setCustomValidity("");
+                    dfuseUploadSizeField.max = device.getMaxReadSize(address);
                 } else {
                     field.setCustomValidity("Address outside of memory map");
                 }
@@ -575,16 +584,20 @@ var device = null;
                 } catch (error) {
                     device.logWarning("Failed to clear status");
                 }
-                await device.do_upload(transferSize).then(
-                    blob => {
-                        saveAs(blob, "firmware.bin");
-                        setLogContext(null);
-                    },
-                    error => {
-                        logError(error);
-                        setLogContext(null);
-                    }
-                );
+
+                let maxSize = Infinity;
+                if (!dfuseUploadSizeField.disabled) {
+                    maxSize = parseInt(dfuseUploadSizeField.value);
+                }
+
+                try {
+                    const blob = await device.do_upload(transferSize, maxSize);
+                    saveAs(blob, "firmware.bin");
+                } catch (error) {
+                    logError(error);
+                }
+
+                setLogContext(null);
             }
 
             return false;
