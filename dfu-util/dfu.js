@@ -633,17 +633,16 @@ var dfu = {};
             } catch (error) {
                 this.logDebug("Manifest GET_STATUS poll error: " + error);
             }
-
-            // Reset to exit MANIFEST_WAIT_RESET
-            try {
-                await this.device_.reset();
-            } catch (error) {
-                if (error == "NetworkError: Unable to reset the device." ||
-                    error == "NotFoundError: Device unavailable.") {
-                    this.logDebug("Ignored reset error");
-                } else {
-                    throw "Error during reset for manifestation: " + error;
-                }
+        }
+        // Reset to exit MANIFEST_WAIT_RESET
+        try {
+            await this.device_.reset();
+        } catch (error) {
+            if (error == "NetworkError: Unable to reset the device." ||
+                error == "NotFoundError: Device unavailable.") {
+                this.logDebug("Ignored reset error");
+            } else {
+                throw "Error during reset for manifestation: " + error;
             }
         }
 
