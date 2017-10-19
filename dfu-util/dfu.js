@@ -613,7 +613,7 @@ var dfu = {};
             // Transition to MANIFEST_SYNC state
             let dfu_status;
             try {
-                dfu_status = await this.poll_until_idle(dfu.dfu_IDLE);
+                dfu_status = await this.poll_until_idle(dfu.dfuIDLE);
             } catch (error) {
                 if (error.endsWith("ControlTransferIn failed: NotFoundError: Device unavailable.")) {
                     this.logWarning("Unable to poll final manifestation status");
