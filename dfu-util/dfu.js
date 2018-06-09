@@ -614,16 +614,16 @@ var dfu = {};
             let dfu_status;
             try {
                 dfu_status = await this.poll_until_idle(dfu.dfuIDLE);
+                if (dfu_status.status != dfu.STATUS_OK) {
+                    throw `DFU MANIFEST failed state=${dfu_status.state}, status=${dfu_status.status}`;
+                }
             } catch (error) {
-                if (error.endsWith("ControlTransferIn failed: NotFoundError: Device unavailable.")) {
+                if (error.endsWith("ControlTransferIn failed: NotFoundError: Device unavailable.") ||
+                    error.endsWith("ControlTransferIn failed: NotFoundError: The device was disconnected.")) {
                     this.logWarning("Unable to poll final manifestation status");
                 } else {
                     throw "Error during DFU manifest: " + error;
                 }
-            }
-
-            if (dfu_status.status != dfu.STATUS_OK) {
-                throw `DFU MANIFEST failed state=${dfu_status.state}, status=${dfu_status.status}`;
             }
         } else {
             // Try polling once to initiate manifestation
@@ -634,12 +634,14 @@ var dfu = {};
                 this.logDebug("Manifest GET_STATUS poll error: " + error);
             }
         }
+
         // Reset to exit MANIFEST_WAIT_RESET
         try {
             await this.device_.reset();
         } catch (error) {
             if (error == "NetworkError: Unable to reset the device." ||
-                error == "NotFoundError: Device unavailable.") {
+                error == "NotFoundError: Device unavailable." ||
+                error == "NotFoundError: The device was disconnected.") {
                 this.logDebug("Ignored reset error");
             } else {
                 throw "Error during reset for manifestation: " + error;
