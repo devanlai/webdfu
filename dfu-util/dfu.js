@@ -613,7 +613,12 @@ var dfu = {};
             // Transition to MANIFEST_SYNC state
             let dfu_status;
             try {
-                dfu_status = await this.poll_until_idle(dfu.dfuIDLE);
+                // Wait until it returns to idle.
+                // If it's not really manifestation tolerant, it might transition to MANIFEST_WAIT_RESET
+                dfu_status = await this.poll_until(state => (state == dfu.dfuIDLE || state == dfu.dfuMANIFEST_WAIT_RESET));
+                if (dfu_status.state == dfu.dfuMANIFEST_WAIT_RESET) {
+                    this.logDebug("Device transitioned to MANIFEST_WAIT_RESET even though it is manifestation tolerant");
+                }
                 if (dfu_status.status != dfu.STATUS_OK) {
                     throw `DFU MANIFEST failed state=${dfu_status.state}, status=${dfu_status.status}`;
                 }
