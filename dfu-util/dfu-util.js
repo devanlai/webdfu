@@ -435,7 +435,7 @@ var device = null;
 
 
         firmwareFile = null;
-        fetch('http://localhost:8000/firmware.bin')
+        fetch('firmware.bin')
           .then(response => response.blob())
           .then((data) => {        
                        let reader = new FileReader();
