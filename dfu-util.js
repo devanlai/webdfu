@@ -218,7 +218,7 @@ var device = null;
             .then(x => x.json())
             .then(x => fetch(x.tree.find(x => x.path === "firmwares")["url"]))
             .then(x=> x.json())
-            .then(x => x.tree.map(y => y.path))
+            .then(x => x.tree.map(y => y.path).sort().reverse())
             .then(x => addOptionsToSelect(firmwaresField, x))
 
         let manifestationTolerant = true;
