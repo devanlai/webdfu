@@ -174,6 +174,15 @@ var device = null;
         }
     }
 
+    function addOptionsToSelect(select, options) {
+        for(var i = 0; i < options.length; i++) {
+            var opt = options[i];
+            var el = document.createElement("option");
+            el.textContent = opt;
+            el.value = opt;
+            select.appendChild(el);
+        }    }
+
     document.addEventListener('DOMContentLoaded', event => {
         let connectButton = document.querySelector("#connect");
         let detachButton = document.querySelector("#detach");
@@ -198,6 +207,17 @@ var device = null;
 
         let downloadLog = document.querySelector("#downloadLog");
         let uploadLog = document.querySelector("#uploadLog");
+
+        let firmwaresField = document.querySelector("#firmwares");
+        // Use the github api to get all available firmwares in the update repo
+        fetch("https://api.github.com/repos/autovent/update/git/trees/gh-pages")
+            .then(x => x.json())
+            .then(x => fetch(x.tree.find(x => x.path === "resources")["url"]))
+            .then(x => x.json())
+            .then(x => fetch(x.tree.find(x => x.path === "firmwares")["url"]))
+            .then(x=> x.json())
+            .then(x => x.tree.map(y => y.path))
+            .then(x => addOptionsToSelect(firmwaresField, x))
 
         let manifestationTolerant = true;
 
@@ -435,17 +455,6 @@ var device = null;
 
 
         firmwareFile = null;
-        fetch('resources/firmwares/firmware.bin')
-          .then(response => response.blob())
-          .then((data) => {        
-                       let reader = new FileReader();
-                    reader.onload = function() {
-                        firmwareFile = reader.result;
-                    };
-                    reader.readAsArrayBuffer(data);
-    
-          })
-        
         
         downloadButton.addEventListener('click', async function(event) {
             event.preventDefault();
@@ -455,40 +464,51 @@ var device = null;
                 return false;
             }
 
-             if (device && firmwareFile != null) {
-                setLogContext(downloadLog);
-                clearLog(downloadLog);
-                try {
-                    let status = await device.getStatus();
-                    if (status.state == dfu.dfuERROR) {
-                        await device.clearStatus();
-                    }
-                } catch (error) {
-                    device.logWarning("Failed to clear status");
-                }
-                await device.do_download(transferSize, firmwareFile, manifestationTolerant).then(
-                    () => {
-                        logInfo("Done!");
-                        setLogContext(null);
-                        if (!manifestationTolerant) {
-                            device.waitDisconnected(5000).then(
-                                dev => {
-                                    onDisconnect();
-                                    device = null;
+            fetch('resources/firmwares/firmware.bin')
+                .then(response => response.blob())
+                .then(async function(data) {        
+                    let reader = new FileReader();
+                    reader.onload = async function() {
+                        firmwareFile = reader.result;
+                        if (device && firmwareFile != null) {
+                            setLogContext(downloadLog);
+                            clearLog(downloadLog);
+                            try {
+                                let status = await device.getStatus();
+                                if (status.state == dfu.dfuERROR) {
+                                    await device.clearStatus();
+                                }
+                            } catch (error) {
+                                device.logWarning("Failed to clear status");
+                            }
+                            await device.do_download(transferSize, firmwareFile, manifestationTolerant).then(
+                                () => {
+                                    logInfo("Done!");
+                                    setLogContext(null);
+                                    if (!manifestationTolerant) {
+                                        device.waitDisconnected(5000).then(
+                                            dev => {
+                                                onDisconnect();
+                                                device = null;
+                                            },
+                                            error => {
+                                                // It didn't reset and disconnect for some reason...
+                                                console.log("Device unexpectedly tolerated manifestation.");
+                                            }
+                                        );
+                                    }
                                 },
                                 error => {
-                                    // It didn't reset and disconnect for some reason...
-                                    console.log("Device unexpectedly tolerated manifestation.");
+                                    logError(error);
+                                    setLogContext(null);
                                 }
-                            );
+                            )
                         }
-                    },
-                    error => {
-                        logError(error);
-                        setLogContext(null);
-                    }
-                )
-            }
+    
+                    };
+                    reader.readAsArrayBuffer(data);
+
+                })
 
             //return false;
         });
