@@ -190,6 +190,8 @@ var device = null;
         let statusDisplay = document.querySelector("#status");
         let infoDisplay = document.querySelector("#usbInfo");
         let dfuDisplay = document.querySelector("#dfuInfo");
+        let downloadToComputerButton = document.querySelector("#to_computer");
+        downloadToComputerButton.disabled = false;
         let vid = 0x0483;
 
         // Grab the serial number from the landing page
@@ -455,6 +457,10 @@ var device = null;
 
 
         firmwareFile = null;
+
+        downloadToComputerButton.addEventListener('click', async function(event) {
+            window.open('resources/firmwares/' + firmwaresField.selectedOptions[0].value)
+        })
         
         downloadButton.addEventListener('click', async function(event) {
             event.preventDefault();
@@ -464,7 +470,7 @@ var device = null;
                 return false;
             }
 
-            fetch('resources/firmwares/firmware.bin')
+            fetch('resources/firmwares/' + firmwaresField.selectedOptions[0].value)
                 .then(response => response.blob())
                 .then(async function(data) {        
                     let reader = new FileReader();
