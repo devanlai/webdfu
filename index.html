@@ -1,8 +1,14 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <link rel="stylesheet" type="text/css" href="sakura.css" />
-    <title>WebUSB DFU</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="https://cdn.muicss.com/mui-0.10.2/css/mui.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.muicss.com/mui-0.10.2/js/mui.min.js"></script>
+    
+    <title>AutoVENT ABVM Firmware Upgrade Tool</title>
     <script src="dfu.js"></script>
     <script src="dfuse.js"></script>
     <script src="dfu-util.js"></script>
@@ -20,65 +26,97 @@
       input:invalid {
         color:red;
       }
+      .title-panel {
+        background-color: #2196F3;
+        color:white;
+      }
+      #download {
+        background-color: rgb(18, 192, 27);
+      }
     </style>
   </head>
+
   <body>
-    <p>
-      <span id="status"></span>
-    </p>
-    <p>
-      <button id="connect">Connect</button>
-    </p>
-    <dialog id="interfaceDialog">
-      Your device has multiple DFU interfaces. Select one from the list below:
-      <form id="interfaceForm" method="dialog">
-        <button id="selectInterface" type="submit">Select interface</button>
-      </form>
-    </dialog>
-    <p>
-      <div id="usbInfo" style="white-space: pre"></div>
-      <div id="dfuInfo" style="white-space: pre"></div>
-    </p>
-    <fieldset>
-      <legend>Runtime mode</legend>
-      <button id="detach" disabled="true">Detach DFU</button>
-    </fieldset>
-    <fieldset>
-      <form id="configForm">
-        <label for="transferSize">Transfer Size:</label>
-        <input type="number" name="transferSize" id="transferSize" value="1024"/>
-        <div id="dfuseFields" hidden="true">
-          <label for="dfuseStartAddress">DfuSe Start Address:</label>
-          <input type="text" name="dfuseStartAddress" id="dfuseStartAddress" title="Initial memory address to read/write from (hex)" size="10" pattern="0x[A-Fa-f0-9]+"/>
-          <label for="dfuseUploadSize">DfuSe Upload Size:</label>
-          <input type="number" name="dfuseUploadSize" id="dfuseUploadSize" min="1"/>
+    <div class="mui-container">
+      <div class="mui-panel title-panel">
+        <h1>AutoVENT ABVM Firmware Upgrade Tool</h1>
+      </div>
+
+      <div class="mui-container-fluid">
+        <div class="mui-row">
+          <div class="mui-col-md-6">
+            <h2>Prerequisites</h2>
+            <ul>
+              <li>An up-to-date version of Chrome, at least version 61 or newer</li>
+              <li>An AUTOVENT BVM device</li>
+            </ul>
+          </div>
+          <div class="mui-col-md-6">
+            <h2>Instructions</h2>
+            <ol>
+              <li>Plug ABVM into your computer or smartphone.</li>
+              <li>Click "Connect to Device" and select the ABVM from the popup.</li>
+              <li>Select firmware version and click "Upgrade Device"</li>
+            </ul>
+          </div>
         </div>
       
-        <legend>DFU mode</legend>
-        <fieldset>
-          <select id="firmwares">
-          </select>        
-    
-          <legend>Firmware Download (write to USB device)</legend>
-          <p>
-            <button id="download" disabled="true">Download</button>
-          </p>
-          <p>
-            <button id="to_computer" disabled="false">Download Firmware File To Computer</button>
-          </p>
-          <div class="log" id="downloadLog"></div>
-        </fieldset>
-      </form>
-    </fieldset>
-    <h1>Prerequisites</h1>
-    <p>In order to run this demo, you will need:</p>
-    <ul>
-      <li>
-        <p>An up-to-date version of Chrome, at least version 61 or newer</p>
-      </li>
-      <li>
-        <p>an AUTOVENT BVM device</p>
-      </li>
-    <ul>
+        <div class="mui-row">
+          <div class="mui-col-md-4">
+            <div class="mui-panel">
+              <h2>Connect</h2>
+              <button id="connect" class="mui-btn mui-btn--primary mui-btn--raised">Connect To Device</button>
+              <h3 id="status"></h3>
+              <dialog id="interfaceDialog" hidden="true">
+                <form class="mui-form" id="interfaceForm" method="dialog">
+                  <button id="selectInterface" type="submit">Select interface</button>
+                </form>
+              </dialog>
+            </div>
+          </div>
+          <div class="mui-col-md-4">
+            <div class="mui-panel">
+              <h2>Upgrade Mode</h2>
+              <form class="mui-form" id="configForm">
+                <div class="mui-select">
+                  <select id="firmwares"></select>
+                  <label>Firmware</label>
+                </div>
+                <div class="mui-textfield">
+                  <input type="number" name="transferSize" id="transferSize" value="1024">
+                  <label>Transfer Size</label>
+                </div>
+
+                <div id="dfuseFields" hidden="true">
+                  <div class="mui-textfield">
+                    <input type="number" name="dfuseStartAddress" id="dfuseStartAddress" value="1024">
+                    <label>DfuSe Start Address</label>
+                  </div>
+                  <div class="mui-textfield">
+                    <input type="number" name="dfuseUploadSize" id="dfuseUploadSize" value="1024">
+                    <label>DfuSe Upload Size</label>
+                  </div>
+                </div>
+
+                <div>
+                  <button id="download" class="mui-btn mui-btn--large mui-btn--primary mui-btn--raised">Upgrade Device</button>
+                </div>
+                <div>
+                  <button id="to_computer" class="mui-btn mui-btn--small mui-btn--primary mui-btn--flat">Download Firmware File</button>
+                </div>
+
+                <div class="log" id="downloadLog"></div>
+              </form>
+            </div>
+          </div>
+          <div class="mui-col-md-4">
+            <div class="mui-panel">
+              <h2>Runtime Mode</h2>
+              <button id="detach" class="mui-btn mui-btn--primary mui-btn--raised" disabled="true">Detach DFU</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
