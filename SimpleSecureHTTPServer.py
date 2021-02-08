@@ -1,9 +1,16 @@
 #!/usr/bin/python
-import BaseHTTPServer, SimpleHTTPServer
+try:
+    # Python 2 version
+    from BaseHTTPServer import HTTPServer
+    from SimpleHTTPServer import SimpleHTTPRequestHandler
+except ImportError:
+    # Python 3 version
+    from http.server import HTTPServer, SimpleHTTPRequestHandler
+
 import ssl
     
 def run(args):
-    httpd = BaseHTTPServer.HTTPServer((args.hostname, args.port), SimpleHTTPServer.SimpleHTTPRequestHandler)
+    httpd = HTTPServer((args.hostname, args.port), SimpleHTTPRequestHandler)
     httpd.socket = ssl.wrap_socket(httpd.socket, certfile=args.cert, server_side=True)
     name, addr = httpd.socket.getsockname()
     print("Serving HTTPS on {} port {}...".format(name, addr))
