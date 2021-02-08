@@ -29,11 +29,6 @@ However, implementing WebUSB descriptors allows the device to specify a landing 
 
 For an example WebUSB-enabled USB DFU bootloader for the STM32F103 series, check out the [dapboot](https://github.com/devanlai/dapboot) project
 
-For [mbed DAPLink](https://developer.mbed.org/handbook/DAPLink) firmware with WebUSB + DFU added, see this fork:
-
-https://github.com/devanlai/DAPLink/tree/nucleo_webusb
-
-
 ## Implemented features
 * Reading the current device firmware (DFU upload)
 * Writing new firmware to a device (DFU download)
@@ -47,7 +42,21 @@ https://github.com/devanlai/DAPLink/tree/nucleo_webusb
 * Better support for remembering previous DFU configurations and pairing the bootloader/runtime versions of the same device.
 
 ## Local testing
-To test changes locally, you can run a simple HTTPS server. A pre-generated certificate is included for convenience.
+To test changes locally, you can run a simple web server.
+
+For testing purposes, your browser will treat even an HTTP server as a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts#when_is_a_context_considered_secure) that can access WebUSB if it is accessed from localhost.
+
+To this end, you can use the standard Python one-liner for running a local HTTP server.
+
+For Python 2:
+
+    python -m SimpleHTTPServer
+
+For Python 3:
+
+    python3 -m http.server
+
+If you do want to test over HTTPS for development, you can run a toy HTTPS server with the following command. A pre-generated certificate is included for convenience.
 
     python SimpleSecureHTTPServer.py --cert server.pem --port 8000
 
@@ -55,4 +64,4 @@ Note: Don't re-use this certificate outside of your development environment!
 
 For additional tips and information about WebUSB, see this article:
 
-https://developers.google.com/web/updates/2016/03/access-usb-devices-on-the-web#tips
+https://web.dev/usb/
