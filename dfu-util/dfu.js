@@ -109,8 +109,18 @@ var dfu = {};
         const altSetting = this.settings.alternate.alternateSetting;
         let intf = this.device_.configuration.interfaces[intfNumber];
         if (intf.alternate === null ||
-            intf.alternate.alternateSetting != altSetting) {
-            await this.device_.selectAlternateInterface(intfNumber, altSetting);
+            intf.alternate.alternateSetting != altSetting ||
+            intf.alternates.length > 1) {
+            try {
+                await this.device_.selectAlternateInterface(intfNumber, altSetting);
+            } catch (error) {
+                if (intf.alternate.alternateSetting == altSetting &&
+                    error.endsWith("Unable to set device interface.")) {
+                    this.logWarning(`Redundant SET_INTERFACE request to select altSetting ${altSetting} failed`);
+                } else {
+                    throw error;
+                }
+            }
         }
     }
 
