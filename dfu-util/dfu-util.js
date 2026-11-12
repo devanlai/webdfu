@@ -269,7 +269,10 @@ var device = null;
         let dfuseUploadSizeField = document.querySelector("#dfuseUploadSize");
 
         let firmwareFileField = document.querySelector("#firmwareFile");
+        let firmwareSuffixDisplay = document.querySelector("#firmwareSuffix");
+        let firmwareWarningDisplay = document.querySelector("#firmwareWarning");
         let firmwareFile = null;
+        let firmwareSuffix = null;
 
         let downloadLog = document.querySelector("#downloadLog");
         let uploadLog = document.querySelector("#uploadLog");
@@ -277,6 +280,18 @@ var device = null;
         let manifestationTolerant = true;
 
         //let device;
+
+        function updateFirmwareWarning(device) {
+            let mismatch = false;
+            if (device && firmwareSuffix) {
+                const vendorMismatch = firmwareSuffix.idVendor != 0xFFFF &&
+                    firmwareSuffix.idVendor != device.device_.vendorId;
+                const productMismatch = firmwareSuffix.idProduct != 0xFFFF &&
+                    firmwareSuffix.idProduct != device.device_.productId;
+                mismatch = vendorMismatch || productMismatch;
+            }
+            firmwareWarningDisplay.hidden = !mismatch;
+        }
 
         function onDisconnect(reason) {
             if (reason) {
@@ -290,6 +305,7 @@ var device = null;
             uploadButton.disabled = true;
             downloadButton.disabled = true;
             firmwareFileField.disabled = true;
+            updateFirmwareWarning(null);
         }
 
         function onUnexpectedDisconnect(event) {
@@ -428,6 +444,7 @@ var device = null;
                 dfuseUploadSizeField.disabled = true;
             }
 
+            updateFirmwareWarning(device);
             return device;
         }
 
@@ -606,11 +623,41 @@ var device = null;
 
         firmwareFileField.addEventListener("change", function() {
             firmwareFile = null;
+            firmwareSuffix = null;
+            firmwareSuffixDisplay.textContent = "";
+            firmwareSuffixDisplay.hidden = true;
+            updateFirmwareWarning(device);
             if (firmwareFileField.files.length > 0) {
                 let file = firmwareFileField.files[0];
                 let reader = new FileReader();
                 reader.onload = function() {
                     firmwareFile = reader.result;
+                    const suffixLength = 16;
+                    if (firmwareFile.byteLength >= suffixLength) {
+                        const suffix = new DataView(firmwareFile, firmwareFile.byteLength - suffixLength);
+                        if (suffix.getUint8(8) == 0x55 &&
+                            suffix.getUint8(9) == 0x46 &&
+                            suffix.getUint8(10) == 0x44 &&
+                            suffix.getUint8(11) == suffixLength) {
+                            firmwareSuffix = {
+                                idProduct: suffix.getUint16(2, true),
+                                idVendor: suffix.getUint16(4, true)
+                            };
+                            firmwareSuffixDisplay.textContent = (
+                                "DFU suffix:\n" +
+                                "bcdDevice: 0x" + hex4(suffix.getUint16(0, true)) + "\n" +
+                                "idProduct: 0x" + hex4(firmwareSuffix.idProduct) + "\n" +
+                                "idVendor: 0x" + hex4(firmwareSuffix.idVendor) + "\n" +
+                                "bcdDFU: 0x" + hex4(suffix.getUint16(6, true)) + "\n" +
+                                "ucDfuSignature: UFD\n" +
+                                "bLength: " + suffix.getUint8(11) + "\n" +
+                                "dwCRC: " + hexAddr8(suffix.getUint32(12, true))
+                            );
+                            firmwareSuffixDisplay.hidden = false;
+                            firmwareFile = firmwareFile.slice(0, firmwareFile.byteLength - suffixLength);
+                            updateFirmwareWarning(device);
+                        }
+                    }
                 };
                 reader.readAsArrayBuffer(file);
             }
